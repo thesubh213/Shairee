@@ -1,0 +1,149 @@
+// src-tauri/src/security/mod.rs
+// Security utilities: path sanitization, PIN validation, and access control.
+
+use crate::error::{AppError, AppResult};
+use std::path::{Component, Path, PathBuf};
+
+/// Sanitize a filename to prevent directory traversal attacks.
+/// Returns the sanitized filename (basename only, no path separators).
+pub fn sanitize_filename(name: &str) -> AppResult<String> {
+    // Reject empty names
+    if name.is_empty() {
+        return Err(AppError::Security("Empty filename".into()));
+    }
+
+    // Decode percent-encoding first
+    let decoded =
+        percent_encoding::percent_decode_str(name).decode_utf8_lossy().to_string();
+
+    // Extract only the file name component — strip any directory part
+    let path = Path::new(&decoded);
+    let filename = path
+        .file_name()
+        .ok_or_else(|| AppError::PathTraversal(format!("Invalid filename: {name}")))?
+        .to_string_lossy()
+        .to_string();
+
+    // Block any remaining traversal indicators
+    if filename.contains("..") || filename.contains('/') || filename.contains('\\') {
+        return Err(AppError::PathTraversal(format!(
+            "Path traversal detected in: {name}"
+        )));
+    }
+
+    // Block null bytes
+    if filename.contains('\0') {
+        return Err(AppError::Security("Null byte in filename".into()));
+    }
+
+    // Block Windows reserved names
+    let upper = filename.to_uppercase();
+    let stem = upper.split('.').next().unwrap_or("");
+    const RESERVED: &[&str] = &[
+        "CON", "PRN", "AUX", "NUL",
+        "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
+        "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
+    ];
+    if RESERVED.contains(&stem) {
+        return Err(AppError::Security(format!(
+            "Reserved Windows filename: {filename}"
+        )));
+    }
+
+    Ok(filename)
+}
+
+/// Validate that a file path is safe to serve.
+/// The path must exist, be absolute, and not contain traversal components.
+pub fn validate_file_path(path: &str) -> AppResult<PathBuf> {
+    let path_buf = PathBuf::from(path);
+
+    // Must be absolute
+    if !path_buf.is_absolute() {
+        return Err(AppError::Security(format!(
+            "Path must be absolute: {path}"
+        )));
+    }
+
+    // Check for traversal components
+    for component in path_buf.components() {
+        if let Component::ParentDir = component {
+            return Err(AppError::PathTraversal(format!(
+                "Parent directory traversal in: {path}"
+            )));
+        }
+    }
+
+    // Canonicalize to resolve symlinks
+    let canonical = path_buf
+        .canonicalize()
+        .map_err(|e| AppError::File(format!("Cannot resolve path {path}: {e}")))?;
+
+    Ok(canonical)
+}
+
+/// Validate a file ID is a proper UUID (prevents injection).
+pub fn validate_file_id(id: &str) -> AppResult<()> {
+    // UUIDs are 36 chars: 8-4-4-4-12
+    if id.len() != 36 {
+        return Err(AppError::Security(format!("Invalid file ID length: {id}")));
+    }
+    // Allow only hex digits and hyphens
+    if !id.chars().all(|c| c.is_ascii_hexdigit() || c == '-') {
+        return Err(AppError::Security(format!("Invalid file ID chars: {id}")));
+    }
+    Ok(())
+}
+
+/// Validate an incoming PIN against the configured one.
+pub fn validate_pin(submitted: &str, expected: &str) -> bool {
+    // Constant-time comparison to prevent timing attacks
+    if submitted.len() != expected.len() {
+        return false;
+    }
+    submitted
+        .bytes()
+        .zip(expected.bytes())
+        .fold(0u8, |acc, (a, b)| acc | (a ^ b))
+        == 0
+}
+
+/// Generate a random PIN of the given length.
+pub fn generate_pin(length: usize) -> String {
+    use rand::Rng;
+    let mut rng = rand::thread_rng();
+    (0..length)
+        .map(|_| rng.gen_range(0..10).to_string())
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_sanitize_normal() {
+        assert_eq!(sanitize_filename("hello.txt").unwrap(), "hello.txt");
+    }
+
+    #[test]
+    fn test_sanitize_traversal() {
+        assert!(sanitize_filename("../etc/passwd").is_err());
+        assert!(sanitize_filename("..\\windows\\system32").is_err());
+    }
+
+    #[test]
+    fn test_sanitize_strips_path() {
+        assert_eq!(
+            sanitize_filename("C:\\Users\\test\\file.txt").unwrap(),
+            "file.txt"
+        );
+    }
+
+    #[test]
+    fn test_validate_pin() {
+        assert!(validate_pin("1234", "1234"));
+        assert!(!validate_pin("1234", "5678"));
+        assert!(!validate_pin("123", "1234"));
+    }
+}
