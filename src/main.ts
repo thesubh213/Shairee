@@ -11,6 +11,64 @@ let serverRunning = false;
 let activeIpList: string[] = [];
 let activeIpIndex = 0;
 
+// ─── Toast System ────────────────────────────────────────────────────
+
+function showToast(message: string, type: "success" | "error" | "info" = "info") {
+  const container = document.getElementById("toast-container");
+  if (!container) return;
+
+  const toast = document.createElement("div");
+  // Basic classes
+  toast.className = "px-4 py-3 rounded-xl border text-sm font-medium text-white shadow-2xl transition-all duration-300 transform translate-y-4 opacity-0 pointer-events-auto backdrop-blur-md flex items-center gap-2 max-w-xs";
+  
+  let colorClasses = "";
+  let icon = "🔔";
+  if (type === "success") {
+    colorClasses = "bg-emerald-500/10 border-emerald-500/20 text-emerald-400";
+    icon = "✓";
+  } else if (type === "error") {
+    colorClasses = "bg-red-500/10 border-red-500/20 text-red-400";
+    icon = "✗";
+  } else {
+    colorClasses = "bg-blue-500/10 border-blue-500/20 text-blue-400";
+    icon = "ℹ";
+  }
+  
+  toast.className += ` ${colorClasses}`;
+  toast.innerHTML = `<span class="text-base font-bold">${icon}</span> <span class="flex-1">${message}</span>`;
+  
+  container.appendChild(toast);
+  
+  // Trigger transition
+  setTimeout(() => {
+    toast.classList.remove("translate-y-4", "opacity-0");
+    toast.classList.add("translate-y-0", "opacity-100");
+  }, 10);
+
+  // Fade out and remove
+  setTimeout(() => {
+    toast.classList.remove("translate-y-0", "opacity-100");
+    toast.classList.add("translate-y-4", "opacity-0");
+    setTimeout(() => {
+      toast.remove();
+    }, 300);
+  }, 3500);
+}
+
+// ─── Loading Overlay Toggler ─────────────────────────────────────────
+
+function showFileLoading(isLoading: boolean) {
+  const loader = document.getElementById("file-list-loading");
+  if (!loader) return;
+  if (isLoading) {
+    loader.classList.remove("hidden");
+    loader.classList.add("flex");
+  } else {
+    loader.classList.add("hidden");
+    loader.classList.remove("flex");
+  }
+}
+
 // ─── Status Updates ──────────────────────────────────────────────────
 
 async function updateServerStatus() {
@@ -36,6 +94,14 @@ async function updateServerStatus() {
     const glow = document.getElementById("server-glow");
     const toggleKnob = document.getElementById("server-toggle-knob");
     
+    // Toggle cycle IP button based on IP list length
+    const cycleBtn = document.getElementById("btn-cycle-ip");
+    if (serverRunning && activeIpList.length > 1) {
+      cycleBtn?.classList.remove("hidden");
+    } else {
+      cycleBtn?.classList.add("hidden");
+    }
+
     if (serverRunning) {
       indicator?.classList.replace("bg-white/5", "bg-green-500/10");
       indicator?.classList.replace("border-white/10", "border-green-500/20");
@@ -61,7 +127,7 @@ async function updateServerStatus() {
       if (urlEl) {
         urlEl.textContent = displayUrl;
         if (activeIpList.length > 1) {
-          urlEl.title = "Multiple IPs detected! Click to cycle adapters.";
+          urlEl.title = "Multiple IPs detected! Click cycle icon to cycle adapters.";
           urlEl.style.cursor = "pointer";
         } else {
           urlEl.title = "";
@@ -168,9 +234,11 @@ async function loadFiles() {
           if (id) {
             try {
               await invoke("remove_file", { id });
+              showToast("File removed from sharing list", "info");
               loadFiles();
             } catch (err) {
               console.error("Failed to delete file:", err);
+              showToast("Failed to remove file", "error");
             }
           }
         });
@@ -220,6 +288,12 @@ function updatePasswordToggleUI() {
 
 function openSettings() {
   loadConfig();
+  const errorMsgEl = document.getElementById("settings-error-msg");
+  if (errorMsgEl) {
+    errorMsgEl.textContent = "";
+    errorMsgEl.classList.add("hidden");
+  }
+
   const overlay = document.getElementById("modal-overlay");
   const modal = document.getElementById("settings-modal");
   
@@ -234,23 +308,52 @@ function closeSettings() {
   const overlay = document.getElementById("modal-overlay");
   const modal = document.getElementById("settings-modal");
   
-  overlay?.classList.replace("opacity-100", "opacity-0");
-  overlay?.classList.replace("pointer-events-auto", "pointer-events-none");
+  overlay?.classList.remove("opacity-100", "pointer-events-auto");
+  overlay?.classList.add("opacity-0", "pointer-events-none");
   
-  modal?.classList.replace("opacity-100", "opacity-0");
-  modal?.classList.replace("scale-100", "scale-95");
+  modal?.classList.remove("opacity-100", "scale-100");
+  modal?.classList.add("opacity-0", "scale-95");
+  
   setTimeout(() => {
-    modal?.classList.replace("block", "hidden");
+    modal?.classList.add("hidden");
+    modal?.classList.remove("block");
   }, 300);
 }
 
 async function saveSettings() {
   const portInput = document.getElementById("setting-port") as HTMLInputElement;
   const passwordInput = document.getElementById("setting-password") as HTMLInputElement;
+  const errorMsgEl = document.getElementById("settings-error-msg");
   
+  if (errorMsgEl) {
+    errorMsgEl.textContent = "";
+    errorMsgEl.classList.add("hidden");
+  }
+
   const nextPort = parseInt(portInput?.value) || 8384;
   const nextPassword = requirePin ? passwordInput?.value.trim() : "";
   
+  // Validation checks
+  if (isNaN(nextPort) || nextPort < 1 || nextPort > 65535) {
+    if (errorMsgEl) {
+      errorMsgEl.textContent = "Port must be a valid integer between 1 and 65535.";
+      errorMsgEl.classList.remove("hidden");
+    }
+    showToast("Invalid custom port value", "error");
+    return;
+  }
+
+  if (requirePin) {
+    if (nextPassword.length < 4 || nextPassword.length > 8 || !/^\d+$/.test(nextPassword)) {
+      if (errorMsgEl) {
+        errorMsgEl.textContent = "PIN must be between 4 and 8 numeric digits.";
+        errorMsgEl.classList.remove("hidden");
+      }
+      showToast("PIN format error", "error");
+      return;
+    }
+  }
+
   try {
     const status: any = await invoke("get_server_status");
     const wasRunning = status.serverRunning;
@@ -265,18 +368,54 @@ async function saveSettings() {
       }
     });
     
+    showToast("Settings saved successfully!", "success");
     closeSettings();
     
     // Automatically restart server if running on a different port
     if (wasRunning && nextPort !== oldPort) {
+      showToast("Restarting server on new port...", "info");
       await invoke("stop_server");
       await invoke("start_server");
     }
     
     updateServerStatus();
-  } catch (e) {
+  } catch (e: any) {
     console.error("Failed to save settings:", e);
+    if (errorMsgEl) {
+      errorMsgEl.textContent = e?.message || e || "Failed to update configuration.";
+      errorMsgEl.classList.remove("hidden");
+    }
+    showToast("Failed to save configuration", "error");
   }
+}
+
+// ─── Clear Confirmation Dialog ───────────────────────────────────────
+
+function openClearConfirm() {
+  const overlay = document.getElementById("modal-overlay");
+  const confirmModal = document.getElementById("confirm-modal");
+  
+  overlay?.classList.remove("opacity-0", "pointer-events-none");
+  overlay?.classList.add("opacity-100", "pointer-events-auto");
+  
+  confirmModal?.classList.remove("hidden", "opacity-0", "scale-95");
+  confirmModal?.classList.add("block", "opacity-100", "scale-100");
+}
+
+function closeClearConfirm() {
+  const overlay = document.getElementById("modal-overlay");
+  const confirmModal = document.getElementById("confirm-modal");
+  
+  overlay?.classList.remove("opacity-100", "pointer-events-auto");
+  overlay?.classList.add("opacity-0", "pointer-events-none");
+  
+  confirmModal?.classList.remove("opacity-100", "scale-100");
+  confirmModal?.classList.add("opacity-0", "scale-95");
+  
+  setTimeout(() => {
+    confirmModal?.classList.add("hidden");
+    confirmModal?.classList.remove("block");
+  }, 300);
 }
 
 // ─── Transfer Logs / Live Activity ────────────────────────────────────
@@ -301,11 +440,23 @@ async function refreshTransferLog() {
       const sortedRecords = [...records].reverse().slice(0, 25);
       logList.innerHTML = sortedRecords.map(item => {
         const sizeMb = (item.fileSize / 1024 / 1024).toFixed(2);
+        
+        let statusText = "Completed";
+        let statusClass = "text-green-400 bg-green-500/10";
+        if (item.status === "failed") {
+          statusText = "Failed";
+          statusClass = "text-red-400 bg-red-500/10";
+        } else if (item.status === "inProgress") {
+          const progressPct = ((item.bytesSent / item.fileSize) * 100).toFixed(0);
+          statusText = `Sharing ${progressPct}%`;
+          statusClass = "text-cyan-400 bg-cyan-500/10 animate-pulse";
+        }
+
         return `
-          <li class="flex flex-col p-2.5 rounded-lg bg-white/5 border border-white/5">
+          <li class="flex flex-col p-2.5 rounded-lg bg-white/5 border border-white/5 transition-all">
             <div class="flex items-center justify-between gap-2">
               <span class="text-xs font-medium text-white truncate max-w-[220px]" title="${item.fileName}">${item.fileName}</span>
-              <span class="text-[10px] text-green-400 font-semibold px-1.5 py-0.5 rounded bg-green-500/10">Completed</span>
+              <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded ${statusClass}">${statusText}</span>
             </div>
             <div class="flex items-center justify-between text-[10px] text-gray-400 mt-1">
               <span>Client: ${item.remoteAddr}</span>
@@ -324,7 +475,8 @@ async function refreshTransferLog() {
 
 window.addEventListener("DOMContentLoaded", () => {
   // Wire up file and folder pickers immediately to isolate from startup errors
-  document.getElementById("btn-add-files")?.addEventListener("click", async () => {
+  document.getElementById("btn-add-files")?.addEventListener("click", async (e) => {
+    e.stopPropagation(); // Prevent bubbling up to drop-zone click trigger!
     try {
       const selected = await open({
         multiple: true,
@@ -334,17 +486,22 @@ window.addEventListener("DOMContentLoaded", () => {
         const paths = Array.isArray(selected) ? selected : [selected];
         const stringPaths = paths.map((p: any) => typeof p === "string" ? p : p.path);
         if (stringPaths.length > 0) {
+          showFileLoading(true);
           await invoke("add_files", { paths: stringPaths });
+          showToast("Added files successfully!", "success");
           loadFiles();
         }
       }
     } catch (err: any) {
       console.error("Browse files error:", err);
-      alert("Error opening file dialog: " + (err?.message || err || "Unknown error"));
+      showToast("Failed to import files", "error");
+    } finally {
+      showFileLoading(false);
     }
   });
 
-  document.getElementById("btn-add-folder")?.addEventListener("click", async () => {
+  document.getElementById("btn-add-folder")?.addEventListener("click", async (e) => {
+    e.stopPropagation(); // Prevent bubbling up to drop-zone click trigger!
     try {
       const selected = await open({
         directory: true,
@@ -353,14 +510,23 @@ window.addEventListener("DOMContentLoaded", () => {
       if (selected) {
         const path = typeof selected === "string" ? selected : (selected as any).path;
         if (path) {
+          showFileLoading(true);
           await invoke("add_folder", { path });
+          showToast("Imported folder successfully!", "success");
           loadFiles();
         }
       }
     } catch (err: any) {
       console.error("Browse folder error:", err);
-      alert("Error opening folder dialog: " + (err?.message || err || "Unknown error"));
+      showToast("Failed to import folder", "error");
+    } finally {
+      showFileLoading(false);
     }
+  });
+
+  // Clicking anywhere on the drop-zone (except on the buttons themselves) will trigger browse files!
+  document.getElementById("drop-zone")?.addEventListener("click", () => {
+    document.getElementById("btn-add-files")?.click();
   });
 
   updateServerStatus();
@@ -379,9 +545,11 @@ window.addEventListener("DOMContentLoaded", () => {
   document.getElementById("btn-start-server-large")?.addEventListener("click", async () => {
     try {
       await invoke("start_server");
+      showToast("Server started!", "success");
       updateServerStatus();
     } catch (e) {
       console.error("Start server error:", e);
+      showToast("Failed to start server", "error");
     }
   });
   
@@ -391,20 +559,24 @@ window.addEventListener("DOMContentLoaded", () => {
       const status: any = await invoke("get_server_status");
       if (status.serverRunning) {
         await invoke("stop_server");
+        showToast("Server stopped", "info");
       } else {
         await invoke("start_server");
+        showToast("Server started!", "success");
       }
       updateServerStatus();
     } catch (e) {
       console.error("Toggle server error:", e);
+      showToast("Failed to toggle server state", "error");
     }
   });
 
-  // Cycle active IP address when clicking access-url
-  document.getElementById("access-url")?.addEventListener("click", () => {
+  // Cycle active IP address when clicking access-url or the cycle button
+  const cycleIpHandler = () => {
     if (activeIpList.length > 1) {
       activeIpIndex = (activeIpIndex + 1) % activeIpList.length;
       updateServerStatus();
+      showToast(`Switched network adapter to ${activeIpList[activeIpIndex]}`, "info");
       
       const urlEl = document.getElementById("access-url");
       if (urlEl) {
@@ -412,6 +584,12 @@ window.addEventListener("DOMContentLoaded", () => {
         setTimeout(() => urlEl.classList.remove("text-green-400"), 800);
       }
     }
+  };
+
+  document.getElementById("access-url")?.addEventListener("click", cycleIpHandler);
+  document.getElementById("btn-cycle-ip")?.addEventListener("click", (e) => {
+    e.stopPropagation(); // Avoid double cycle
+    cycleIpHandler();
   });
 
   // Copy Access URL with click feedback animation
@@ -420,12 +598,13 @@ window.addEventListener("DOMContentLoaded", () => {
     if (accessUrl) {
       try {
         await navigator.clipboard.writeText(accessUrl);
+        showToast("Access URL copied to clipboard!", "success");
         // Show success animation
         const btn = document.getElementById("btn-copy-url");
         const svgIcons = btn?.querySelectorAll("svg");
         if (svgIcons && svgIcons.length === 2) {
-          svgIcons[0].classList.add("hidden"); // Copy icon
-          svgIcons[1].classList.remove("hidden"); // Checkmark icon
+          svgIcons[0].classList.add("hidden"); 
+          svgIcons[1].classList.remove("hidden"); 
           
           setTimeout(() => {
             svgIcons[0].classList.remove("hidden");
@@ -441,7 +620,16 @@ window.addEventListener("DOMContentLoaded", () => {
   // Settings Modal wiring
   document.getElementById("btn-settings")?.addEventListener("click", openSettings);
   document.getElementById("btn-close-settings")?.addEventListener("click", closeSettings);
-  document.getElementById("modal-overlay")?.addEventListener("click", closeSettings);
+  document.getElementById("modal-overlay")?.addEventListener("click", () => {
+    const modal = document.getElementById("settings-modal");
+    if (modal && !modal.classList.contains("hidden")) {
+      closeSettings();
+    }
+    const confirmModal = document.getElementById("confirm-modal");
+    if (confirmModal && !confirmModal.classList.contains("hidden")) {
+      closeClearConfirm();
+    }
+  });
   document.getElementById("btn-save-settings")?.addEventListener("click", saveSettings);
   
   // Password Pin Toggle switch
@@ -450,24 +638,32 @@ window.addEventListener("DOMContentLoaded", () => {
     updatePasswordToggleUI();
   });
 
-  // File pickers moved to the top of DOMContentLoaded block
-
-  // Clear All files
-  document.getElementById("btn-clear-files")?.addEventListener("click", async () => {
+  // Clear All files (Confirmation trigger)
+  document.getElementById("btn-clear-files")?.addEventListener("click", openClearConfirm);
+  document.getElementById("btn-cancel-clear")?.addEventListener("click", closeClearConfirm);
+  document.getElementById("btn-confirm-clear")?.addEventListener("click", async () => {
     try {
       await invoke("clear_files");
+      showToast("All shared files cleared successfully", "success");
       loadFiles();
     } catch (err) {
       console.error("Clear files error:", err);
+      showToast("Failed to clear shared files", "error");
+    } finally {
+      closeClearConfirm();
     }
   });
 
-  // Escape closes settings modal
+  // Escape closes active overlay
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
       const modal = document.getElementById("settings-modal");
       if (modal && !modal.classList.contains("hidden")) {
         closeSettings();
+      }
+      const confirmModal = document.getElementById("confirm-modal");
+      if (confirmModal && !confirmModal.classList.contains("hidden")) {
+        closeClearConfirm();
       }
     }
   });
@@ -483,9 +679,19 @@ window.addEventListener("DOMContentLoaded", () => {
         dropZone?.classList.remove("border-blue-500", "bg-white/[0.06]");
         const paths = event.payload.paths;
         if (paths && paths.length > 0) {
+          showFileLoading(true);
           invoke("add_files", { paths })
-            .then(() => loadFiles())
-            .catch(err => console.error("Drop import error:", err));
+            .then(() => {
+              showToast("Dropped files added successfully!", "success");
+              loadFiles();
+            })
+            .catch(err => {
+              console.error("Drop import error:", err);
+              showToast("Failed to import dropped files", "error");
+            })
+            .finally(() => {
+              showFileLoading(false);
+            });
         }
       } else if (event.payload.type === "leave") {
         dropZone?.classList.remove("border-blue-500", "bg-white/[0.06]");
@@ -499,3 +705,10 @@ window.addEventListener("DOMContentLoaded", () => {
 // Setup Tauri event listeners for instant updates
 listen("server-started", () => updateServerStatus());
 listen("server-stopped", () => updateServerStatus());
+listen("files-changed", () => loadFiles());
+listen("transfer-progress", () => refreshTransferLog());
+listen("transfer-complete", (event: any) => {
+  const payload = event.payload;
+  showToast(`Successfully transferred ${payload.fileName || "file"}!`, "success");
+  refreshTransferLog();
+});

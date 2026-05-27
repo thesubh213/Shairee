@@ -54,21 +54,13 @@ async fn start_server(
     // Start Actix server
     match server::start_server(state.inner().clone(), app.clone(), port) {
         Ok(handle) => {
-            // We use a workaround to store the handle if needed, or simply don't store it 
-            // since Actix web provides a `handle.stop(true)` method. 
-            // We will just let it run for now or we can implement stop_server via the oneshot channel.
-            
-            // For simplicity, we just use the oneshot channel to stop
             let (tx, rx) = tokio::sync::oneshot::channel();
             
-            // Spawn a thread to wait for stop signal
+            // Spawn a task inside Tauri's tokio runtime to wait for stop signal
             let handle_clone = handle.clone();
-            std::thread::spawn(move || {
-                let rt = tokio::runtime::Runtime::new().unwrap();
-                rt.block_on(async {
-                    let _ = rx.await;
-                    handle_clone.stop(true).await;
-                });
+            tauri::async_runtime::spawn(async move {
+                let _ = rx.await;
+                handle_clone.stop(true).await;
             });
 
             app_state.server_stop_tx = Some(tx);
@@ -79,9 +71,6 @@ async fn start_server(
             let ip = app_state.local_ip.clone().unwrap_or_else(|| "127.0.0.1".into());
             let url = format!("http://{}:{}", ip, port);
             app_state.server_url = Some(url.clone());
-            
-            // Note: we can't easily set QR code in AppState because it doesn't have the field.
-            // We'll generate it on the fly when requested instead.
             
             let _ = app.emit("server-started", serde_json::json!({ "url": url }));
             Ok(url)
@@ -107,6 +96,7 @@ async fn stop_server(
 
 #[tauri::command]
 async fn add_files(
+    app: tauri::AppHandle,
     paths: Vec<String>,
     state: tauri::State<'_, Arc<RwLock<AppState>>>,
 ) -> Result<Vec<SharedFileInfo>, AppError> {
@@ -121,11 +111,13 @@ async fn add_files(
             }
         }
     }
+    let _ = app.emit("files-changed", ());
     Ok(added)
 }
 
 #[tauri::command]
 async fn add_folder(
+    app: tauri::AppHandle,
     path: String,
     state: tauri::State<'_, Arc<RwLock<AppState>>>,
 ) -> Result<Vec<SharedFileInfo>, AppError> {
@@ -137,25 +129,30 @@ async fn add_folder(
             added.push(info);
         }
     }
+    let _ = app.emit("files-changed", ());
     Ok(added)
 }
 
 #[tauri::command]
 async fn remove_file(
+    app: tauri::AppHandle,
     id: String,
     state: tauri::State<'_, Arc<RwLock<AppState>>>,
 ) -> Result<(), AppError> {
     let mut app_state = state.write();
     app_state.remove_file(&id).map_err(AppError::File)?;
+    let _ = app.emit("files-changed", ());
     Ok(())
 }
 
 #[tauri::command]
 async fn clear_files(
+    app: tauri::AppHandle,
     state: tauri::State<'_, Arc<RwLock<AppState>>>,
 ) -> Result<(), AppError> {
     let mut app_state = state.write();
     app_state.clear_files();
+    let _ = app.emit("files-changed", ());
     Ok(())
 }
 
@@ -214,6 +211,7 @@ async fn get_config(
 
 #[tauri::command]
 async fn update_config(
+    app: tauri::AppHandle,
     config: FrontendAppConfig,
     state: tauri::State<'_, Arc<RwLock<AppState>>>,
 ) -> Result<(), AppError> {
@@ -233,11 +231,59 @@ async fn update_config(
     
     new_config.validate().map_err(AppError::Config)?;
     
+    // Ensure Firewall Rule for the new port on Windows!
+    #[cfg(target_os = "windows")]
+    {
+        let _ = network::firewall::ensure_firewall_rule(config.port);
+    }
+    
     // Save to disk (we use . as config_dir which maps to AppState config_dir)
     let config_dir = app_state.config_dir.clone();
     new_config.save(&config_dir).map_err(AppError::Config)?;
     
+    let port_changed = config.port != app_state.config.port;
+    let was_running = app_state.server_running;
+    
+    if was_running && port_changed {
+        // Stop active server first
+        if let Some(tx) = app_state.server_stop_tx.take() {
+            let _ = tx.send(());
+        }
+        app_state.server_running = false;
+        app_state.server_url = None;
+        let _ = app.emit("server-stopped", ());
+    }
+    
     app_state.config = new_config;
+    
+    if was_running && port_changed {
+        // Start Actix server on new port
+        let app_handle = app.clone();
+        match server::start_server(state.inner().clone(), app_handle.clone(), config.port) {
+            Ok(handle) => {
+                let (tx, rx) = tokio::sync::oneshot::channel();
+                tauri::async_runtime::spawn(async move {
+                    let _ = rx.await;
+                    handle.stop(true).await;
+                });
+
+                app_state.server_stop_tx = Some(tx);
+                app_state.server_running = true;
+                app_state.server_port = config.port;
+                
+                let ip = app_state.local_ip.clone().unwrap_or_else(|| "127.0.0.1".into());
+                let url = format!("http://{}:{}", ip, config.port);
+                app_state.server_url = Some(url.clone());
+                
+                let _ = app_handle.emit("server-started", serde_json::json!({ "url": url }));
+            }
+            Err(e) => {
+                let _ = app_handle.emit("server-stopped", ());
+                return Err(e);
+            }
+        }
+    }
+    
     Ok(())
 }
 
@@ -253,10 +299,21 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .manage(app_state)
         .setup(move |app| {
-            // Check for firewall rule (Windows)
+            // Resolve the standard Tauri config directory for robustness!
+            let config_dir = app.path().app_config_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+            let loaded_config = config::AppConfig::load(&config_dir);
+            
+            {
+                let mut state = app_state_clone.write();
+                state.config_dir = config_dir;
+                state.config = loaded_config;
+            }
+
+            // Check for firewall rule (Windows) using the dynamically configured port!
             #[cfg(target_os = "windows")]
             {
-                let _ = network::firewall::ensure_firewall_rule(8384);
+                let port = app_state_clone.read().config.port;
+                let _ = network::firewall::ensure_firewall_rule(port);
             }
 
             let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
@@ -288,11 +345,6 @@ pub fn run() {
                     }
                 })
                 .build(app)?;
-
-            // Auto-start server if configured
-            if app_state_clone.read().config.auto_start_server {
-                // ...
-            }
 
             Ok(())
         })

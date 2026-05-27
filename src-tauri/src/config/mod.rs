@@ -93,27 +93,43 @@ impl AppConfig {
 
     /// Validate configuration values.
     pub fn validate(&self) -> Result<(), String> {
+        // Validate port: u16 is automatically 0-65535, but 0 is reserved
         if self.port == 0 {
-            return Err("Port cannot be 0".into());
+            return Err("Port must be between 1 and 65535".into());
         }
+        
+        // Validate PIN if required
         if self.require_pin {
             match &self.pin_code {
                 Some(pin) => {
-                    if pin.len() < 4 || pin.len() > 8 || !pin.chars().all(|c| c.is_ascii_digit())
-                    {
-                        return Err("PIN must be 4-8 digits".into());
+                    // PIN must be 4-8 ASCII digits
+                    if pin.is_empty() {
+                        return Err("PIN cannot be empty when require_pin is enabled".into());
+                    }
+                    if pin.len() < 4 || pin.len() > 8 {
+                        return Err(format!("PIN must be 4-8 digits, got {} chars", pin.len()));
+                    }
+                    if !pin.chars().all(|c| c.is_ascii_digit()) {
+                        return Err("PIN must contain only digits (0-9)".into());
                     }
                 }
-                None => return Err("PIN is required when require_pin is enabled".into()),
+                None => return Err("PIN code is required when require_pin is enabled".into()),
             }
         }
-        if !self.bind_address.is_empty()
-            && self.bind_address != "0.0.0.0"
+        
+        // Validate bind address is not empty
+        if self.bind_address.is_empty() {
+            return Err("Bind address cannot be empty".into());
+        }
+        
+        // Validate bind address format
+        if self.bind_address != "0.0.0.0"
             && self.bind_address != "127.0.0.1"
             && self.bind_address.parse::<std::net::IpAddr>().is_err()
         {
-            return Err(format!("Invalid bind address: {}", self.bind_address));
+            return Err(format!("Invalid bind address: '{}' (must be valid IP or 0.0.0.0)", self.bind_address));
         }
+        
         Ok(())
     }
 }

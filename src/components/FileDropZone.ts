@@ -8,26 +8,84 @@ import { addFiles, addFolder } from '../utils/tauri-api';
 let dropZoneEl: HTMLElement | null = null;
 let isProcessing = false;
 
+// Store event handler references for cleanup
+const eventHandlers = {
+  handleDragEnter: null as ((e: DragEvent) => void) | null,
+  handleDragOver: null as ((e: DragEvent) => void) | null,
+  handleDragLeave: null as ((e: DragEvent) => void) | null,
+  handleDrop: null as ((e: DragEvent) => void) | null,
+  handleWindowDragEnter: null as ((e: DragEvent) => void) | null,
+  handleWindowDragLeave: null as ((e: DragEvent) => void) | null,
+  handleWindowDrop: null as ((e: DragEvent) => void) | null,
+  handleWindowDragOver: null as ((e: DragEvent) => void) | null,
+  handleBrowse: null as (() => Promise<void>) | null,
+  handleBrowseFolder: null as (() => Promise<void>) | null,
+};
+
+export function cleanupFileDropZone(): void {
+  // Remove all event listeners to prevent memory leaks
+  if (dropZoneEl && eventHandlers.handleDragEnter) {
+    dropZoneEl.removeEventListener('dragenter', eventHandlers.handleDragEnter);
+    dropZoneEl.removeEventListener('dragover', eventHandlers.handleDragOver);
+    dropZoneEl.removeEventListener('dragleave', eventHandlers.handleDragLeave);
+    dropZoneEl.removeEventListener('drop', eventHandlers.handleDrop);
+  }
+
+  if (eventHandlers.handleWindowDragEnter) {
+    document.removeEventListener('dragenter', eventHandlers.handleWindowDragEnter);
+    document.removeEventListener('dragleave', eventHandlers.handleWindowDragLeave);
+    document.removeEventListener('drop', eventHandlers.handleWindowDrop);
+    document.removeEventListener('dragover', eventHandlers.handleWindowDragOver);
+  }
+
+  const browseBtn = document.getElementById('browse-btn');
+  if (browseBtn && eventHandlers.handleBrowse) {
+    browseBtn.removeEventListener('click', eventHandlers.handleBrowse);
+  }
+
+  const browseFolderBtn = document.getElementById('browse-folder-btn');
+  if (browseFolderBtn && eventHandlers.handleBrowseFolder) {
+    browseFolderBtn.removeEventListener('click', eventHandlers.handleBrowseFolder);
+  }
+
+  dropZoneEl = null;
+}
+
 export function initFileDropZone(): void {
+  // Clean up any existing listeners first
+  cleanupFileDropZone();
+
   dropZoneEl = document.getElementById('file-drop-zone');
   if (!dropZoneEl) return;
 
-  dropZoneEl.addEventListener('dragenter', handleDragEnter);
-  dropZoneEl.addEventListener('dragover', handleDragOver);
-  dropZoneEl.addEventListener('dragleave', handleDragLeave);
-  dropZoneEl.addEventListener('drop', handleDrop);
+  // Bind handler functions (store references for cleanup)
+  eventHandlers.handleDragEnter = handleDragEnter;
+  eventHandlers.handleDragOver = handleDragOver;
+  eventHandlers.handleDragLeave = handleDragLeave;
+  eventHandlers.handleDrop = handleDrop;
+  eventHandlers.handleWindowDragEnter = handleWindowDragEnter;
+  eventHandlers.handleWindowDragLeave = handleWindowDragLeave;
+  eventHandlers.handleWindowDrop = handleWindowDrop;
+  eventHandlers.handleWindowDragOver = (e: DragEvent) => e.preventDefault();
+  eventHandlers.handleBrowse = handleBrowse;
+  eventHandlers.handleBrowseFolder = handleBrowseFolder;
+
+  dropZoneEl.addEventListener('dragenter', eventHandlers.handleDragEnter);
+  dropZoneEl.addEventListener('dragover', eventHandlers.handleDragOver);
+  dropZoneEl.addEventListener('dragleave', eventHandlers.handleDragLeave);
+  dropZoneEl.addEventListener('drop', eventHandlers.handleDrop);
 
   const browseBtn = document.getElementById('browse-btn');
-  browseBtn?.addEventListener('click', handleBrowse);
+  browseBtn?.addEventListener('click', eventHandlers.handleBrowse);
 
   const browseFolderBtn = document.getElementById('browse-folder-btn');
-  browseFolderBtn?.addEventListener('click', handleBrowseFolder);
+  browseFolderBtn?.addEventListener('click', eventHandlers.handleBrowseFolder);
 
   // Whole window drag awareness
-  document.addEventListener('dragenter', handleWindowDragEnter);
-  document.addEventListener('dragleave', handleWindowDragLeave);
-  document.addEventListener('drop', handleWindowDrop);
-  document.addEventListener('dragover', (e) => e.preventDefault());
+  document.addEventListener('dragenter', eventHandlers.handleWindowDragEnter);
+  document.addEventListener('dragleave', eventHandlers.handleWindowDragLeave);
+  document.addEventListener('drop', eventHandlers.handleWindowDrop);
+  document.addEventListener('dragover', eventHandlers.handleWindowDragOver);
 }
 
 function handleDragEnter(e: DragEvent): void {

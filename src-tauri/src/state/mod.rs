@@ -127,6 +127,10 @@ impl AppState {
 
     /// Add a shared file, returning its info.
     pub fn add_file(&mut self, path: PathBuf) -> Result<SharedFileInfo, String> {
+        // Validate path length (Windows MAX_PATH consideration)
+        crate::security::validate_path_length(path.to_string_lossy().as_ref())
+            .map_err(|e| e.to_string())?;
+        
         let metadata = std::fs::metadata(&path).map_err(|e| format!("Cannot read file: {e}"))?;
         let name = path
             .file_name()
@@ -142,7 +146,7 @@ impl AppState {
             name,
             path: path.to_string_lossy().to_string(),
             size: if metadata.is_dir() {
-                dir_size(&path)
+                dir_size(&path)  // dir_size already returns u64, returns 0 on error
             } else {
                 metadata.len()
             },
@@ -150,6 +154,11 @@ impl AppState {
             is_directory: metadata.is_dir(),
             added_at: Utc::now(),
         };
+
+        // Bound check: prevent adding unbounded number of files
+        if self.shared_files.len() >= 10000 {
+            return Err("Maximum number of shared files reached (10000)".into());
+        }
 
         self.shared_files.insert(id.clone(), info.clone());
         self.file_order.push(id);
@@ -214,18 +223,105 @@ impl AppState {
         };
         self.transfer_log.push(record);
     }
+
+    /// Record the start of an asynchronous download.
+    pub fn record_start(
+        &mut self,
+        file_id: &str,
+        file_name: &str,
+        file_size: u64,
+        remote_addr: &str,
+    ) -> String {
+        // Clean up old transfer logs every 100 records to prevent unbounded growth
+        if self.transfer_log.len() % 100 == 0 {
+            self.cleanup_old_transfer_logs();
+        }
+        
+        let id = uuid::Uuid::new_v4().to_string();
+        let record = TransferRecord {
+            id: id.clone(),
+            file_id: file_id.to_string(),
+            file_name: file_name.to_string(),
+            file_size,
+            remote_addr: remote_addr.to_string(),
+            started_at: Utc::now(),
+            completed_at: None,
+            bytes_sent: 0,
+            status: TransferStatus::InProgress,
+        };
+        self.transfer_log.push(record);
+        id
+    }
+
+    /// Update progress of an active download (use linear search with index caching).
+    pub fn update_progress(&mut self, record_id: &str, bytes_sent: u64) {
+        // Find by linear search - acceptable for small collections
+        if let Some(pos) = self.transfer_log.iter().position(|r| r.id == record_id) {
+            self.transfer_log[pos].bytes_sent = bytes_sent;
+        }
+    }
+
+    /// Record successful completion of an active download.
+    pub fn record_complete(&mut self, record_id: &str) {
+        self.total_downloads += 1;
+        if let Some(pos) = self.transfer_log.iter().position(|r| r.id == record_id) {
+            self.transfer_log[pos].completed_at = Some(Utc::now());
+            self.transfer_log[pos].bytes_sent = self.transfer_log[pos].file_size;
+            self.transfer_log[pos].status = TransferStatus::Completed;
+        }
+    }
+
+    /// Record failure of an active download.
+    pub fn record_failed(&mut self, record_id: &str) {
+        if let Some(pos) = self.transfer_log.iter().position(|r| r.id == record_id) {
+            self.transfer_log[pos].completed_at = Some(Utc::now());
+            self.transfer_log[pos].status = TransferStatus::Failed;
+        }
+    }
+
+    /// Clean up transfer logs older than 24 hours to prevent unbounded memory growth.
+    pub fn cleanup_old_transfer_logs(&mut self) {
+        let cutoff = Utc::now() - chrono::Duration::days(1);
+        self.transfer_log.retain(|record| record.started_at > cutoff);
+    }
+
+    /// Get transfer logs for display (maximum 100 most recent).
+    pub fn get_recent_transfer_logs(&self) -> Vec<TransferRecord> {
+        self.transfer_log.iter()
+            .rev()
+            .take(100)
+            .cloned()
+            .collect()
+    }
 }
 
 /// Shared state handle — the canonical way to pass state around.
 pub type SharedAppState = Arc<RwLock<AppState>>;
 
-/// Recursively compute directory size.
+/// Recursively compute directory size, handling errors gracefully.
+/// Returns 0 if the directory cannot be accessed (instead of panicking).
 fn dir_size(path: &std::path::Path) -> u64 {
     walkdir::WalkDir::new(path)
         .into_iter()
-        .filter_map(|e| e.ok())
+        .filter_map(|e| {
+            match e {
+                Ok(entry) => Some(entry),
+                Err(err) => {
+                    // Log the error but continue processing other files
+                    log::debug!("Error walking directory {}: {}", path.display(), err);
+                    None
+                }
+            }
+        })
         .filter(|e| e.file_type().is_file())
-        .filter_map(|e| e.metadata().ok())
-        .map(|m| m.len())
+        .filter_map(|e| {
+            match e.metadata() {
+                Ok(m) => Some(m.len()),
+                Err(err) => {
+                    log::debug!("Error reading metadata for {}: {}", e.path().display(), err);
+                    None
+                }
+            }
+        })
         .sum()
 }

@@ -78,12 +78,26 @@ function populateForm(config: AppConfig): void {
   saveBtn?.addEventListener('click', async () => {
     if (!currentConfig) return;
 
+    // Validate port input
+    const portStr = portInput?.value?.trim() || '8080';
+    const port = parseInt(portStr, 10);
+    
+    if (isNaN(port) || port < 1 || port > 65535) {
+      showToast(`Invalid port: must be 1-65535`);
+      return;
+    }
+
+    // Validate PIN if enabled
+    const password = passwordInput?.value?.trim() || '';
+    const autoStart = autoStartInput?.checked ?? false;
+    const showNotifications = notifInput?.checked ?? true;
+
     const updated: AppConfig = {
       ...currentConfig,
-      port: parseInt(portInput?.value || '8080', 10),
-      password: passwordInput?.value || '',
-      autoStart: autoStartInput?.checked ?? false,
-      showNotifications: notifInput?.checked ?? true,
+      port,
+      password,
+      autoStart,
+      showNotifications,
     };
 
     try {

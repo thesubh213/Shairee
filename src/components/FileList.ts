@@ -13,6 +13,11 @@ let totalSizeEl: HTMLElement | null = null;
 let clearAllBtn: HTMLElement | null = null;
 let currentFiles: SharedFileInfo[] = [];
 
+// Add debouncing to prevent race conditions in rapid refreshes
+let isRefreshing = false;
+let pendingRefresh = false;
+let animationTimeouts: ReturnType<typeof setTimeout>[] = [];
+
 export function initFileList(): void {
   fileListEl = document.getElementById('file-list');
   emptyStateEl = document.getElementById('file-list-empty');
@@ -26,16 +31,37 @@ export function initFileList(): void {
 }
 
 export async function refreshFileList(): Promise<void> {
+  // If already refreshing, queue another refresh
+  if (isRefreshing) {
+    pendingRefresh = true;
+    return;
+  }
+
+  isRefreshing = true;
+  pendingRefresh = false;
+
   try {
     currentFiles = await getSharedFiles();
     renderFileList();
+
+    // If a refresh was queued while we were refreshing, do it now
+    if (pendingRefresh) {
+      isRefreshing = false;
+      await refreshFileList();
+    }
   } catch (err) {
     console.error('Failed to fetch files:', err);
+  } finally {
+    isRefreshing = false;
   }
 }
 
 function renderFileList(): void {
   if (!fileListEl) return;
+
+  // Clean up any pending animation timeouts
+  animationTimeouts.forEach(timeout => clearTimeout(timeout));
+  animationTimeouts = [];
 
   // Update counters
   const totalSize = currentFiles.reduce((sum, f) => sum + f.size, 0);
@@ -62,7 +88,8 @@ function renderFileList(): void {
     const id = el.getAttribute('data-file-id');
     if (id && !newIds.has(id)) {
       el.classList.add('file-card-exit');
-      setTimeout(() => el.remove(), 300);
+      const timeout = setTimeout(() => el.remove(), 300);
+      animationTimeouts.push(timeout);
     }
   });
 

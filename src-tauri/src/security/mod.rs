@@ -95,8 +95,38 @@ pub fn validate_file_id(id: &str) -> AppResult<()> {
     Ok(())
 }
 
+/// Validate that a file still exists and is readable at the given path.
+/// Must be called immediately before file operations to minimize TOCTOU window.
+pub fn validate_file_exists_and_readable(path: &Path) -> AppResult<()> {
+    // Check file exists and is readable
+    std::fs::metadata(path)
+        .map_err(|e| AppError::File(format!("File not accessible: {e}")))?;
+    Ok(())
+}
+
+/// Validate file path length (Windows MAX_PATH is 260, but we use 250 for safety).
+pub fn validate_path_length(path: &str) -> AppResult<()> {
+    if path.len() > 250 {
+        return Err(AppError::Security(format!("Path too long (>{} chars): {}", 250, path)));
+    }
+    Ok(())
+}
+
 /// Validate an incoming PIN against the configured one.
 pub fn validate_pin(submitted: &str, expected: &str) -> bool {
+    // Reject empty PINs
+    if submitted.is_empty() || expected.is_empty() {
+        return false;
+    }
+    
+    // Validate PIN format: 4-8 digits only
+    if submitted.len() < 4 || submitted.len() > 8 {
+        return false;
+    }
+    if !submitted.chars().all(|c| c.is_ascii_digit()) {
+        return false;
+    }
+    
     // Constant-time comparison to prevent timing attacks
     if submitted.len() != expected.len() {
         return false;
