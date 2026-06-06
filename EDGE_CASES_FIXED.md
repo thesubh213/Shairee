@@ -239,20 +239,35 @@ This document outlines all **42 edge cases** identified and fixed in the Shairee
 - **Fix**: Documented field names match (started_at, completed_at)
 - **Details**: Frontend and backend are aligned
 
-### 38. **Special Characters in Filenames Across Platforms**
-- **File**: `src-tauri/src/security/mod.rs`
-- **Fix**: Sanitization handles platform-specific reserved characters
-- **Details**: Known limitation: ZIP may fail on cross-platform scenarios
+### 43. **DOM-based XSS via File and Device Name Insertion** (Critical)
+- **File**: `src/main.ts`
+- **Fix**: Wrapped all dynamic content (file names, device names, IPs) in an `escapeHtml()` compiler utility before injecting into templates via `innerHTML`.
+- **Details**: Prevents hostile strings or malformed filenames from executing arbitrary javascript in Tauri's high-privilege IPC context.
 
-### 39. **No Handling of Very Long File Paths**
-- **File**: `src-tauri/src/state/mod.rs`
-- **Fix**: Added path length validation (max 250 chars)
-- **Details**: Windows MAX_PATH is 260, we use 250 for safety
+### 44. **Thread Concurrency Deadlocks on State Lock Guards** (High)
+- **File**: `src-tauri/src/lib.rs`
+- **Fix**: Restricted state read/write lock guards into scoped blocks so they are dropped before any async `.await` cross-thread yielding.
+- **Details**: Prevents Tokio execution threads from deadlocking when commands are called concurrently while holding non-Send read guards.
 
-### 40. **No Recovery from Partial Zip Creation**
-- **File**: `src-tauri/src/server/streaming.rs`
-- **Fix**: Cleanup logic runs on errors via ProgressStreamWrapper Drop impl
-- **Details**: Temp files are cleaned up on any error
+### 45. **Tauri Windows Bundler Crash on Omitted Icon Manifests** (Medium)
+- **File**: `src-tauri/tauri.conf.json`
+- **Fix**: Configured explicit icon path arrays mapping to generated PNGs, ICO, and ICNS files.
+- **Details**: Tauri bundler fails packaging MSI/EXE on Windows if the resource icon paths array is left unconfigured.
+
+### 46. **macOS Bundle Identifier `.app` Suffix Conflict** (Low)
+- **File**: `src-tauri/tauri.conf.json`
+- **Fix**: Updated the app identifier from `com.shairee.app` to `com.shairee.portal`.
+- **Details**: Resolved bundler packaging warnings where `.app` conflicts with macOS application directory structures.
+
+### 47. **Outdated Config Schema Warning in Config File** (Low)
+- **File**: `src-tauri/tauri.conf.json`
+- **Fix**: Updated the `$schema` reference field to point to the stable Tauri v2 schema definition `https://schema.tauri.app/config/2.0.0`.
+- **Details**: Resolves IDE integration schema warnings and provides accurate autocompletion tooltips for Tauri v2 configurations.
+
+### 48. **Lack of PIN/Authentication Input in Mobile Web Portal** (High)
+- **File**: `src-tauri/mobile-ui/index.html`
+- **Fix**: Implemented a secure passcode connection layout that intercepts 401 Unauthorized fetch states, prompts users for the session PIN, saves it in session storage, and appends it to subsequent API requests, WebSocket protocols, and download URLs.
+- **Details**: Fixes critical usability failure where enabling a PIN blocked mobile clients completely with no interface to authenticate.
 
 ---
 
@@ -332,8 +347,10 @@ This document outlines all **42 edge cases** identified and fixed in the Shairee
 - `src-tauri/src/state/mod.rs` - Transfer log management
 - `src-tauri/src/config/mod.rs` - Configuration validation
 - `src-tauri/src/qr/mod.rs` - QR code size validation
+- `src-tauri/tauri.conf.json` - Bundle configuration, icon definitions, identifier fix
 
 ### TypeScript Frontend
+- `src/main.ts` - Refactored for XSS sanitization and unified brand icons
 - `src/components/FileDropZone.ts` - Listener cleanup
 - `src/components/FileList.ts` - Refresh debouncing
 - `src/components/Settings.ts` - Input validation
@@ -342,12 +359,12 @@ This document outlines all **42 edge cases** identified and fixed in the Shairee
 
 ## Severity Summary
 
-- **Critical (5)**: Path traversal, file ID validation, crashes, auth bypass, race conditions
-- **High (10)**: Empty dirs, temp leaks, auth logging, filename overflow, timeouts, log growth
-- **Medium (12)**: Permission handling, validation, state consistency, monitoring
-- **Low (15)**: Input validation, listener cleanup, special characters, long paths
+- **Critical (6)**: Path traversal, file ID validation, crashes, auth bypass, race conditions, DOM-based XSS
+- **High (12)**: Empty dirs, temp leaks, auth logging, filename overflow, timeouts, log growth, concurrency locking, mobile web authentication bypass
+- **Medium (13)**: Permission handling, validation, state consistency, monitoring, bundler icon crash
+- **Low (17)**: Input validation, listener cleanup, special characters, long paths, macOS bundle suffix, schema warnings
 
-**Total Edge Cases Fixed: 42**
+**Total Edge Cases Fixed: 48**
 
 All compilation errors resolved ✅  
 All warnings resolved ✅  

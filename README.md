@@ -7,10 +7,16 @@
 ## 🌟 Core Features
 
 ### 🖥️ Native Desktop Experience (Tauri v2)
-*   **Vibrant Glassmorphism UI**: Built with a sleek dark aesthetic, pulsing gradients, and micro-animations that feel premium and modern.
+*   **Premium Nike-Style Editorial UI**: Designed around a minimal, high-contrast grid system using flat hairline borders (`border-hairline`), clean typography (`Bebas Neue` campaign displays + `Inter` UI font), Soft Cloud backdrops, and strict pill/circle button geometry.
+*   **Dynamic Light & Dark Modes**: Native theme toggler that swaps CSS properties instantly and remembers user preferences in browser `localStorage`.
+*   **Hotspot-Zap Brand Mark**: Custom vector brand icon embedded directly in the window resources, favicon, and key UI loading/broadcasting modules.
 *   **Dual Selectors**: Direct buttons for picking multiple files or sharing entire directories using native Windows dialogs.
-*   **Native Drag & Drop**: Drag files or folders anywhere onto the dotted drop zone card to watch it glow and instantly import paths.
-*   **System Tray Integration**: Minimize the app to the Windows system tray with quick actions to start/stop the sharing portal or quit.
+*   **Native Drag & Drop**: Drag files or folders anywhere onto the drop zone to watch it glow and instantly import paths.
+
+### ⚡ Direct LAN Transfer & Peer Discovery (Rust)
+*   **UDP Beacon Scanner (Port 8389)**: Senders broadcast `SHAIREE_DISCOVER` packets on the local subnet to dynamically find active receivers without typing IP addresses.
+*   **Consent-Based Push Protocol**: Pushing files to a receiver prompts a secure **Incoming Transfer** modal. Senders block on a oneshot channel until the receiver explicitly clicks **Accept** or **Decline**.
+*   **Low-Memory Background Pull Stream**: Files are fetched from sender HTTP endpoints in chunks and saved directly inside the system `Downloads` directory, updating live progress indicators.
 
 ### ⚡ Ultra-Fast Local Sharing (Rust + Actix Web)
 *   **Zero-Copy Streaming**: Regular file downloads leverage low-memory, high-throughput streaming with HTTP Range header support for resumable downloads.
@@ -21,7 +27,7 @@
 
 ### 📡 Smart Networking & Connectivity
 *   **Self-Healing Hotspot Support**: Prioritizes the default Windows Mobile Hotspot adapter (`192.168.137.x`) automatically. If your hotspot is active, it binds directly to the phone-reachable gateway IP `192.168.137.1`!
-*   **Dynamic IP cycling**: In multi-adapter systems (e.g., active home Wi-Fi and Mobile Hotspot), you can simply **click on the displayed Access URL** inside the app to cycle through all available IP addresses and dynamically regenerate the QR code on-the-fly.
+*   **Dynamic IP cycling**: In multi-adapter systems, click on the displayed Access URL inside the app to cycle through all available IP addresses and dynamically regenerate the QR code on-the-fly.
 *   **PIN Protection**: Enable **Require Password** in settings to secure your shared files with a custom access PIN code.
 *   **Resilient WebSocket Connection**: The mobile page connects back to your PC via WebSockets to automatically refresh the files list when you add or remove files. If the connection drops, it reconnects silently in the background without annoying infinite page reloads.
 
@@ -60,12 +66,42 @@ npm run tauri dev
 ```
 *(If Cargo is not globally recognized in your terminal, run: `& "$env:USERPROFILE\.cargo\bin\cargo" tauri dev`)*
 
-### 3. Build Production Bundle
+### 3. Build Production Windows Bundle
 To compile and package the application into a highly optimized, single standalone Windows `.exe` installer (saved under `src-tauri/target/release/bundle/nsis/`):
 ```bash
 npm run build
-npm run tauri build
+npx tauri build
 ```
+
+### 4. Build Android APK Target
+Compiling for Android requires the Android SDK, NDK, and Java build tools. 
+
+1. **Setup Java SDK (JDK 17+):**
+   Ensure Java 17 or higher is installed and the `JAVA_HOME` environment variable is configured.
+2. **Install Android SDK & NDK:**
+   Open SDK Manager in Android Studio and ensure the following are installed:
+   - Android SDK Platform-Tools
+   - Android SDK Build-Tools
+   - NDK (Side-by-side)
+3. **Configure Environment Variables:**
+   Add the following variables to your environment:
+   - `ANDROID_HOME` = `C:\Users\<Your-Username>\AppData\Local\Android\Sdk`
+   - `NDK_HOME` = `C:\Users\<Your-Username>\AppData\Local\Android\Sdk\ndk\<NDK-Version>`
+4. **Compile the APK:**
+   Run the following commands:
+   ```bash
+   # Add Android target architectures
+   rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android
+
+   # Initialize android platform in Tauri project (run once)
+   npx tauri android init --ci
+
+   # Build the release APK
+   npx tauri android build
+   ```
+   The generated APK will be output at:
+   `src-tauri/gen/android/app/build/outputs/apk/release/app-release.apk`
+
 
 ---
 

@@ -46,6 +46,7 @@ pub fn start_server(
             .route("/download/{id}/{name}", web::get().to(routes::download_file_with_name))
             .route("/download-all", web::get().to(routes::download_all))
             .route("/api/download-all", web::get().to(routes::download_all))
+            .route("/api/receive-request", web::post().to(routes::receive_request))
             // UI Route (catch all, serves mobile UI)
             .route("/", web::get().to(mobile_ui::serve_mobile_ui))
     })

@@ -2,9 +2,42 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --colors-canvas: #ffffff;
+  --colors-ink: #111111;
+  --colors-soft-cloud: #f5f5f5;
+  --colors-hairline: #cacacb;
+  --colors-hairline-soft: #e5e5e5;
+  --colors-sale: #d30005;
+  --colors-sale-deep: #780700;
+  --colors-success: #007d48;
+  --colors-success-bright: #1eaa52;
+  --colors-info: #1151ff;
+  --colors-info-deep: #0034e3;
+  --colors-on-primary: #ffffff;
+}
+
+[data-theme="dark"] {
+  --colors-canvas: #111111;
+  --colors-ink: #ffffff;
+  --colors-soft-cloud: #1c1c1e;
+  --colors-hairline: #2c2c2e;
+  --colors-hairline-soft: #3a3a3c;
+  --colors-sale: #ff3333;
+  --colors-sale-deep: #a80500;
+  --colors-success: #1eaa52;
+  --colors-success-bright: #007d48;
+  --colors-info: #3b82f6;
+  --colors-info-deep: #1d4ed8;
+  --colors-on-primary: #111111;
+}
+
 @layer base {
   body {
-    @apply antialiased selection:bg-blue-500/30 selection:text-blue-200;
+    background-color: var(--colors-canvas);
+    color: var(--colors-ink);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    @apply antialiased transition-colors duration-200;
   }
 }
 
@@ -17,6 +50,25 @@
     background: transparent;
   }
   .custom-scrollbar::-webkit-scrollbar-thumb {
-    @apply bg-white/10 rounded-full hover:bg-white/20 transition-colors;
+    background: var(--colors-hairline);
+    border-radius: 9999px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: var(--colors-hairline-soft);
+  }
+
+  /* Nike tap collapse feedback */
+  .btn-tap-collapse {
+    @apply transition-all duration-150 active:scale-95 active:opacity-75;
+  }
+
+  /* Nike search pill focus halo */
+  .focus-halo {
+    @apply transition-all duration-200 outline-none;
+  }
+  .focus-halo:focus {
+    background-color: var(--colors-canvas);
+    border-color: var(--colors-ink);
+    box-shadow: 0 0 0 10px var(--colors-soft-cloud);
   }
 }

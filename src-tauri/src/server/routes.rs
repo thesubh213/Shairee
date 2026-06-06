@@ -479,3 +479,202 @@ pub async fn download_all(
         }
     }
 }
+
+// ─── Incoming File Transfers & Discovery ─────────────────────────────
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IncomingFileRequest {
+    pub sender_name: String,
+    pub sender_ip: String,
+    pub sender_port: u16,
+    pub files: Vec<IncomingFileInfo>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IncomingFileInfo {
+    pub id: String,
+    pub name: String,
+    pub size: u64,
+}
+
+/// Helper function to asynchronously pull files from sender and save to Downloads
+async fn download_file_from_remote(
+    app: tauri::AppHandle,
+    sender_ip: String,
+    sender_port: u16,
+    file_id: String,
+    file_name: String,
+    file_size: u64,
+) -> Result<(), String> {
+    use tauri::Manager;
+    
+    // Resolve AppState
+    let state = app.state::<std::sync::Arc<parking_lot::RwLock<crate::state::AppState>>>();
+    
+    // Start pull record in AppState logs
+    let transfer_id = {
+        let mut st = state.write();
+        st.record_start_pull(&file_id, &file_name, file_size, &sender_ip)
+    };
+
+    // Helper closure to mark failed in AppState
+    let mark_failed = |err_msg: &str| {
+        let mut st = state.write();
+        st.record_failed(&transfer_id);
+        err_msg.to_string()
+    };
+
+    let download_dir = app.path().download_dir().map_err(|e| mark_failed(&e.to_string()))?;
+    
+    // Ensure downloads folder exists
+    let _ = tokio::fs::create_dir_all(&download_dir).await;
+    let target_path = download_dir.join(&file_name);
+
+    let client = reqwest::Client::new();
+    let url = format!("http://{}:{}/api/download/{}", sender_ip, sender_port, file_id);
+
+    let mut response = match client.get(&url).send().await {
+        Ok(r) => r,
+        Err(e) => return Err(mark_failed(&e.to_string())),
+    };
+
+    if !response.status().is_success() {
+        return Err(mark_failed(&format!("Server returned error code: {}", response.status())));
+    }
+
+    let mut file = match tokio::fs::File::create(&target_path).await {
+        Ok(f) => f,
+        Err(e) => return Err(mark_failed(&e.to_string())),
+    };
+
+    let mut bytes_downloaded = 0u64;
+    let mut last_emit = std::time::Instant::now();
+
+    // Trigger initial progress event in UI
+    let _ = app.emit("transfer-progress", serde_json::json!({
+        "fileId": file_id,
+        "fileName": file_name,
+        "clientIp": sender_ip,
+        "bytesTransferred": 0,
+        "totalBytes": file_size,
+        "speedBps": 0,
+        "isDownload": true
+    }));
+
+    loop {
+        let chunk = match response.chunk().await {
+            Ok(Some(c)) => c,
+            Ok(None) => break,
+            Err(e) => return Err(mark_failed(&e.to_string())),
+        };
+
+        use tokio::io::AsyncWriteExt;
+        if let Err(e) = file.write_all(&chunk).await {
+            return Err(mark_failed(&e.to_string()));
+        }
+        bytes_downloaded += chunk.len() as u64;
+
+        let now = std::time::Instant::now();
+        if now.duration_since(last_emit).as_millis() > 200 {
+            {
+                let mut st = state.write();
+                st.update_progress(&transfer_id, bytes_downloaded);
+            }
+            let _ = app.emit("transfer-progress", serde_json::json!({
+                "fileId": file_id,
+                "fileName": file_name,
+                "clientIp": sender_ip,
+                "bytesTransferred": bytes_downloaded,
+                "totalBytes": file_size,
+                "speedBps": 0,
+                "isDownload": true
+            }));
+            last_emit = now;
+        }
+    }
+    
+    use tokio::io::AsyncWriteExt;
+    let _ = file.flush().await;
+
+    // Record complete in AppState logs
+    {
+        let mut st = state.write();
+        st.record_complete(&transfer_id);
+    }
+
+    // Trigger completion event
+    let _ = app.emit("transfer-complete", serde_json::json!({
+        "fileId": file_id,
+        "fileName": file_name,
+        "clientIp": sender_ip,
+        "isDownload": true
+    }));
+
+    Ok(())
+}
+
+/// Endpoint called by the sender to request permission to transfer files.
+pub async fn receive_request(
+    payload: web::Json<IncomingFileRequest>,
+    state: web::Data<ServerState>,
+) -> impl Responder {
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    
+    // Save the responder channel in AppState
+    {
+        let mut app_state = state.app_state.write();
+        app_state.pending_receives.insert(payload.sender_ip.clone(), tx);
+    }
+
+    // Emit event to frontend UI to trigger the accept/decline dialog
+    let _ = state.tauri_app.emit("incoming-transfer-request", serde_json::json!({
+        "senderName": payload.sender_name,
+        "senderIp": payload.sender_ip,
+        "senderPort": payload.sender_port,
+        "files": payload.files,
+    }));
+
+    // Wait for response from UI (timeout in 30 seconds)
+    match tokio::time::timeout(std::time::Duration::from_secs(30), rx).await {
+        Ok(Ok(accepted)) => {
+            if accepted {
+                let app_handle = state.tauri_app.clone();
+                let sender_ip = payload.sender_ip.clone();
+                let sender_port = payload.sender_port;
+                let files = payload.files.clone();
+                
+                // Spawn async download task for the accepted files
+                tauri::async_runtime::spawn(async move {
+                    for f in files {
+                        log::info!("Starting background pull for: {} ({} bytes)", f.name, f.size);
+                        match download_file_from_remote(
+                            app_handle.clone(),
+                            sender_ip.clone(),
+                            sender_port,
+                            f.id.clone(),
+                            f.name.clone(),
+                            f.size,
+                        ).await {
+                            Ok(_) => log::info!("Successfully pulled and saved file {}", f.name),
+                            Err(e) => log::error!("Failed pulling remote file {}: {}", f.name, e),
+                        }
+                    }
+                });
+
+                HttpResponse::Ok().json(serde_json::json!({ "status": "accepted" }))
+            } else {
+                HttpResponse::Ok().json(serde_json::json!({ "status": "declined" }))
+            }
+        }
+        _ => {
+            // Remove the channel on timeout or drop
+            {
+                let mut app_state = state.app_state.write();
+                app_state.pending_receives.remove(&payload.sender_ip);
+            }
+            HttpResponse::Ok().json(serde_json::json!({ "status": "timeout" }))
+        }
+    }
+}

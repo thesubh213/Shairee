@@ -39,6 +39,7 @@ pub struct TransferRecord {
     pub completed_at: Option<DateTime<Utc>>,
     pub bytes_sent: u64,
     pub status: TransferStatus,
+    pub is_download: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -103,6 +104,9 @@ pub struct AppState {
 
     /// Total downloads since launch
     pub total_downloads: u64,
+
+    /// Pending incoming transfer prompts (key: sender IP, value: oneshot response channel)
+    pub pending_receives: std::collections::HashMap<String, tokio::sync::oneshot::Sender<bool>>,
 }
 
 impl AppState {
@@ -122,6 +126,7 @@ impl AppState {
             server_stop_tx: None,
             ws_client_count: 0,
             total_downloads: 0,
+            pending_receives: std::collections::HashMap::new(),
         }
     }
 
@@ -220,6 +225,7 @@ impl AppState {
             completed_at: Some(Utc::now()),
             bytes_sent: file_size,
             status: TransferStatus::Completed,
+            is_download: false,
         };
         self.transfer_log.push(record);
     }
@@ -248,6 +254,36 @@ impl AppState {
             completed_at: None,
             bytes_sent: 0,
             status: TransferStatus::InProgress,
+            is_download: false,
+        };
+        self.transfer_log.push(record);
+        id
+    }
+
+    /// Record the start of an incoming direct file pull.
+    pub fn record_start_pull(
+        &mut self,
+        file_id: &str,
+        file_name: &str,
+        file_size: u64,
+        remote_addr: &str,
+    ) -> String {
+        if self.transfer_log.len() % 100 == 0 {
+            self.cleanup_old_transfer_logs();
+        }
+        
+        let id = uuid::Uuid::new_v4().to_string();
+        let record = TransferRecord {
+            id: id.clone(),
+            file_id: file_id.to_string(),
+            file_name: file_name.to_string(),
+            file_size,
+            remote_addr: remote_addr.to_string(),
+            started_at: Utc::now(),
+            completed_at: None,
+            bytes_sent: 0,
+            status: TransferStatus::InProgress,
+            is_download: true,
         };
         self.transfer_log.push(record);
         id

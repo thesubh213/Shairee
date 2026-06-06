@@ -287,6 +287,148 @@ async fn update_config(
     Ok(())
 }
 
+#[tauri::command]
+async fn discover_devices() -> Result<Vec<serde_json::Value>, AppError> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let socket = std::net::UdpSocket::bind("0.0.0.0:0")
+            .map_err(|e| AppError::Server(format!("Failed to bind UDP: {e}")))?;
+        socket.set_broadcast(true)
+            .map_err(|e| AppError::Server(format!("Failed set broadcast: {e}")))?;
+        socket.set_read_timeout(Some(std::time::Duration::from_millis(1500)))
+            .map_err(|e| AppError::Server(format!("Failed timeout: {e}")))?;
+
+        let _ = socket.send_to(b"SHAIREE_DISCOVER", "255.255.255.255:8389");
+
+        let mut devices = Vec::new();
+        let mut seen = std::collections::HashSet::new();
+        let mut buf = [0u8; 1024];
+
+        let start = std::time::Instant::now();
+        while start.elapsed() < std::time::Duration::from_millis(1500) {
+            match socket.recv_from(&mut buf) {
+                Ok((amt, src)) => {
+                    let msg = String::from_utf8_lossy(&buf[..amt]);
+                    if msg.starts_with("SHAIREE_SERVER|") {
+                        let parts: Vec<&str> = msg.split('|').collect();
+                        if parts.len() >= 4 {
+                            let name = parts[1].to_string();
+                            let port_str = parts[2];
+                            let require_pin_str = parts[3];
+                            
+                            let ip = src.ip().to_string();
+                            let port = port_str.parse::<u16>().unwrap_or(8384);
+                            let require_pin = require_pin_str == "true";
+
+                            let unique_key = format!("{}:{}", ip, port);
+                            if !seen.contains(&unique_key) {
+                                seen.insert(unique_key);
+                                devices.push(serde_json::json!({
+                                    "ip": ip,
+                                    "name": name,
+                                    "port": port,
+                                    "requirePin": require_pin
+                                }));
+                            }
+                        }
+                    }
+                }
+                Err(_) => {}
+            }
+        }
+
+        Ok(devices)
+    }).await.map_err(|e| AppError::Server(format!("Task error: {e}")))?
+}
+
+#[tauri::command]
+async fn respond_to_receive_request(
+    sender_ip: String,
+    accept: bool,
+    state: tauri::State<'_, Arc<parking_lot::RwLock<AppState>>>,
+) -> Result<(), AppError> {
+    let mut app_state = state.write();
+    if let Some(tx) = app_state.pending_receives.remove(&sender_ip) {
+        let _ = tx.send(accept);
+    }
+    Ok(())
+}
+
+#[tauri::command]
+async fn send_files_to_device(
+    target_ip: String,
+    target_port: u16,
+    state: tauri::State<'_, Arc<parking_lot::RwLock<AppState>>>,
+) -> Result<serde_json::Value, AppError> {
+    let sender_name = network::discovery::get_device_name();
+    let (sender_port, sender_ip, files) = {
+        let app_state = state.read();
+        let port = app_state.server_port;
+        let ip = app_state.local_ip.clone()
+            .unwrap_or_else(|| {
+                network::discovery::get_all_local_ips().first().cloned()
+                    .unwrap_or_else(|| "127.0.0.1".to_string())
+            });
+        let files = app_state.get_files_ordered();
+        (port, ip, files)
+    };
+
+    if files.is_empty() {
+        return Err(AppError::Server("No shared files to send".into()));
+    }
+
+    let files_payload: Vec<serde_json::Value> = files.into_iter().map(|f| {
+        serde_json::json!({
+            "id": f.id,
+            "name": f.name,
+            "size": f.size,
+        })
+    }).collect();
+
+    let payload = serde_json::json!({
+        "senderName": sender_name,
+        "senderIp": sender_ip,
+        "senderPort": sender_port,
+        "files": files_payload,
+    });
+
+    tauri::async_runtime::spawn_blocking(move || {
+        use std::io::{Read, Write};
+        let address = format!("{}:{}", target_ip, target_port);
+        let mut stream = std::net::TcpStream::connect_timeout(
+            &address.parse().map_err(|e| format!("Invalid receiver address {address}: {e}"))
+                .map_err(AppError::Server)?,
+            std::time::Duration::from_secs(5)
+        ).map_err(|e| AppError::Server(format!("Failed to connect to receiver at {address}: {e}")))?;
+
+        let body = serde_json::to_string(&payload).map_err(|e| AppError::Server(e.to_string()))?;
+        let request = format!(
+            "POST /api/receive-request HTTP/1.1\r\n\
+             Host: {}\r\n\
+             Content-Type: application/json\r\n\
+             Content-Length: {}\r\n\
+             Connection: close\r\n\r\n\
+             {}",
+            address, body.len(), body
+        );
+
+        stream.write_all(request.as_bytes()).map_err(|e| AppError::Server(format!("Failed to write: {e}")))?;
+        stream.flush().map_err(|e| AppError::Server(e.to_string()))?;
+
+        let mut response_bytes = Vec::new();
+        stream.read_to_end(&mut response_bytes).map_err(|e| AppError::Server(format!("Failed to read response: {e}")))?;
+
+        let response_str = String::from_utf8_lossy(&response_bytes);
+        if let Some(body_start) = response_str.find("\r\n\r\n") {
+            let json_body = &response_str[body_start + 4..];
+            let parsed: serde_json::Value = serde_json::from_str(json_body)
+                .map_err(|e| AppError::Server(format!("Failed to parse response JSON ({json_body}): {e}")))?;
+            Ok(parsed)
+        } else {
+            Err(AppError::Server("Invalid HTTP response".into()))
+        }
+    }).await.map_err(|e| AppError::Server(format!("Blocking task error: {e}")))?
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let config = config::AppConfig::default();
@@ -308,6 +450,9 @@ pub fn run() {
                 state.config_dir = config_dir;
                 state.config = loaded_config;
             }
+
+            // Start the UDP discovery background listener
+            network::discovery::start_discovery_listener(app_state_clone.clone(), app.handle().clone());
 
             // Check for firewall rule (Windows) using the dynamically configured port!
             #[cfg(target_os = "windows")]
@@ -361,7 +506,10 @@ pub fn run() {
             get_local_ips,
             get_transfer_log,
             get_config,
-            update_config
+            update_config,
+            discover_devices,
+            respond_to_receive_request,
+            send_files_to_device
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -79,3 +79,59 @@ pub fn get_all_local_ips() -> Vec<String> {
 pub fn build_server_url(ip: &str, port: u16) -> String {
     format!("http://{}:{}", ip, port)
 }
+
+/// Resolve local system device name.
+pub fn get_device_name() -> String {
+    if let Ok(name) = std::env::var("COMPUTERNAME") {
+        return name;
+    }
+    if let Ok(name) = std::fs::read_to_string("/proc/sys/kernel/hostname") {
+        let trimmed = name.trim();
+        if !trimmed.is_empty() {
+            return trimmed.to_string();
+        }
+    }
+    if let Ok(name) = std::env::var("HOSTNAME") {
+        return name;
+    }
+    "Shairee Device".to_string()
+}
+
+/// Listen for incoming UDP discovery broadcasts on port 8389.
+pub fn start_discovery_listener(
+    app_state: std::sync::Arc<parking_lot::RwLock<crate::state::AppState>>,
+    _app_handle: tauri::AppHandle,
+) {
+    std::thread::spawn(move || {
+        let socket = match std::net::UdpSocket::bind("0.0.0.0:8389") {
+            Ok(s) => s,
+            Err(e) => {
+                log::warn!("Could not bind UDP discovery listener on 8389: {e}. Other devices will not find this device automatically.");
+                return;
+            }
+        };
+
+        let mut buf = [0u8; 1024];
+        loop {
+            match socket.recv_from(&mut buf) {
+                Ok((amt, src)) => {
+                    let msg = String::from_utf8_lossy(&buf[..amt]);
+                    if msg == "SHAIREE_DISCOVER" {
+                        let state = app_state.read();
+                        if state.server_running {
+                            let device_name = get_device_name();
+                            let port = state.server_port;
+                            let require_pin = state.config.require_pin;
+                            let reply = format!("SHAIREE_SERVER|{}|{}|{}", device_name, port, require_pin);
+                            let _ = socket.send_to(reply.as_bytes(), src);
+                        }
+                    }
+                }
+                Err(e) => {
+                    log::error!("UDP discovery listener socket error: {e}");
+                    std::thread::sleep(std::time::Duration::from_millis(1000));
+                }
+            }
+        }
+    });
+}
