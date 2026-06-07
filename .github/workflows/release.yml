@@ -115,7 +115,6 @@ jobs:
               package com.shairee.portal
               
               import android.os.Bundle
-              import com.shairee.portal.generated.TauriActivity
               import android.content.Context
               import android.net.wifi.WifiManager
               
