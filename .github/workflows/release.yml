@@ -75,7 +75,7 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v4
         with:
-          packages: 'tools platform-tools ndk;26.1.10909125'
+          packages: 'tools platform-tools ndk;29.0.14206865'
           accept-android-sdk-licenses: true
           log-accepted-android-sdk-licenses: false
 
@@ -93,7 +93,9 @@ jobs:
       - name: Inject Android P2P Sharing Capabilities
         run: |
           python3 -c '
-          import re
+          import os
+          import textwrap
+          
           # Manifest injection
           manifest_path = "src-tauri/gen/android/app/src/main/AndroidManifest.xml"
           with open(manifest_path, "r") as f:
@@ -107,56 +109,52 @@ jobs:
           with open(manifest_path, "w") as f:
               f.write(manifest)
           
-          # MainActivity injection
+          # MainActivity overwrite with correct multicast lock code and imports
           activity_path = "src-tauri/gen/android/app/src/main/java/com/shairee/portal/MainActivity.kt"
-          with open(activity_path, "r") as f:
-              activity = f.read()
-          if "WifiManager" not in activity:
-              activity = re.sub(
-                  r"(import com\.tauri\.webview\.TauriActivity)",
-                  r"\1\nimport android.content.Context\nimport android.net.wifi.WifiManager",
-                  activity
-              )
-          if "multicastLock" not in activity:
-              class_body = """
-              private var multicastLock: WifiManager.MulticastLock? = null
-          
-              override fun onCreate(savedInstanceState: Bundle?) {
-                  super.onCreate(savedInstanceState)
-                  try {
-                      val wifi = applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
-                      multicastLock = wifi.createMulticastLock("ShaireeMulticastLock")
-                      multicastLock?.setReferenceCounted(true)
-                      multicastLock?.acquire()
-                  } catch (e: Exception) {
-                      e.printStackTrace()
+          code = textwrap.dedent("""\
+              package com.shairee.portal
+              
+              import android.os.Bundle
+              import app.tauri.TauriActivity
+              import android.content.Context
+              import android.net.wifi.WifiManager
+              
+              class MainActivity : TauriActivity() {
+                  private var multicastLock: WifiManager.MulticastLock? = null
+              
+                  override fun onCreate(savedInstanceState: Bundle?) {
+                      super.onCreate(savedInstanceState)
+                      try {
+                          val wifi = applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+                          multicastLock = wifi.createMulticastLock("ShaireeMulticastLock")
+                          multicastLock?.setReferenceCounted(true)
+                          multicastLock?.acquire()
+                      } catch (e: Exception) {
+                          e.printStackTrace()
+                      }
+                  }
+              
+                  override fun onDestroy() {
+                      super.onDestroy()
+                      try {
+                          multicastLock?.let {
+                              if (it.isHeld) {
+                                  it.release()
+                              }
+                          }
+                      } catch (e: Exception) {
+                          e.printStackTrace()
+                      }
                   }
               }
-          
-              override fun onDestroy() {
-                  super.onDestroy()
-                  try {
-                      multicastLock?.let {
-                          if (it.isHeld) {
-                              it.release()
-                          }
-                      }
-                  } catch (e: Exception) {
-                      e.printStackTrace()
-                  }
-              }"""
-              activity = re.sub(
-                  r"(class\s+MainActivity\s*:\s*TauriActivity\s*\(\s*\)\s*\{|class\s+MainActivity\s*:\s*TauriActivity\s*\{)",
-                  r"\1\n" + class_body,
-                  activity
-              )
+          """)
           with open(activity_path, "w") as f:
-              f.write(activity)
+              f.write(code)
           '
 
       - name: Compile Android Release APK
         run: |
-          export NDK_HOME=$ANDROID_HOME/ndk/26.1.10909125
+          export NDK_HOME=$ANDROID_HOME/ndk/29.0.14206865
           npx tauri android build
 
       - name: Generate Release Keystore and Sign APK
