@@ -14,7 +14,9 @@ pub mod state;
 use std::sync::Arc;
 use parking_lot::RwLock;
 use tauri::Manager;
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
 use tauri::tray::{TrayIconBuilder, MouseButton, MouseButtonState, TrayIconEvent};
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
 use tauri::menu::{Menu, MenuItem};
 use tauri::Emitter;
 use state::{AppState, SharedFileInfo};
@@ -359,9 +361,9 @@ async fn send_files_to_device(
     target_port: u16,
     state: tauri::State<'_, Arc<parking_lot::RwLock<AppState>>>,
 ) -> Result<serde_json::Value, AppError> {
-    let sender_name = network::discovery::get_device_name();
-    let (sender_port, sender_ip, files) = {
+    let (sender_name, sender_port, sender_ip, files) = {
         let app_state = state.read();
+        let name = app_state.config.server_name.clone();
         let port = app_state.server_port;
         let ip = app_state.local_ip.clone()
             .unwrap_or_else(|| {
@@ -369,7 +371,7 @@ async fn send_files_to_device(
                     .unwrap_or_else(|| "127.0.0.1".to_string())
             });
         let files = app_state.get_files_ordered();
-        (port, ip, files)
+        (name, port, ip, files)
     };
 
     if files.is_empty() {
@@ -454,6 +456,32 @@ pub fn run() {
             // Start the UDP discovery background listener
             network::discovery::start_discovery_listener(app_state_clone.clone(), app.handle().clone());
 
+            // Auto-start Actix HTTP/WS server on launch for native P2P connectivity
+            let port = app_state_clone.read().config.port;
+            let ips = network::discovery::get_all_local_ips();
+            {
+                let mut state = app_state_clone.write();
+                state.local_ip = ips.first().cloned();
+            }
+            match server::start_server(app_state_clone.clone(), app.handle().clone(), port) {
+                Ok(handle) => {
+                    let (tx, rx) = tokio::sync::oneshot::channel();
+                    tauri::async_runtime::spawn(async move {
+                        let _ = rx.await;
+                        handle.stop(true).await;
+                    });
+                    let mut state = app_state_clone.write();
+                    state.server_stop_tx = Some(tx);
+                    state.server_running = true;
+                    state.server_port = port;
+                    let ip = state.local_ip.clone().unwrap_or_else(|| "127.0.0.1".into());
+                    state.server_url = Some(format!("http://{}:{}", ip, port));
+                }
+                Err(e) => {
+                    log::error!("Failed to auto-start sharing server: {e}");
+                }
+            }
+
             // Check for firewall rule (Windows) using the dynamically configured port!
             #[cfg(target_os = "windows")]
             {
@@ -461,35 +489,38 @@ pub fn run() {
                 let _ = network::firewall::ensure_firewall_rule(port);
             }
 
-            let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-            let show = MenuItem::with_id(app, "show", "Show", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&show, &quit])?;
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
+            {
+                let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
+                let show = MenuItem::with_id(app, "show", "Show", true, None::<&str>)?;
+                let menu = Menu::with_items(app, &[&show, &quit])?;
 
-            let _tray = TrayIconBuilder::new()
-                .menu(&menu)
-                .tooltip("Shairee")
-                .icon(app.default_window_icon().unwrap().clone())
-                .on_menu_event(|app, event| {
-                    match event.id.as_ref() {
-                        "quit" => app.exit(0),
-                        "show" => {
-                            if let Some(window) = app.get_webview_window("main") {
+                let _tray = TrayIconBuilder::new()
+                    .menu(&menu)
+                    .tooltip("Shairee")
+                    .icon(app.default_window_icon().unwrap().clone())
+                    .on_menu_event(|app, event| {
+                        match event.id.as_ref() {
+                            "quit" => app.exit(0),
+                            "show" => {
+                                if let Some(window) = app.get_webview_window("main") {
+                                    let _ = window.show();
+                                    let _ = window.set_focus();
+                                }
+                            }
+                            _ => {}
+                        }
+                    })
+                    .on_tray_icon_event(|tray, event| {
+                        if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } = event {
+                            if let Some(window) = tray.app_handle().get_webview_window("main") {
                                 let _ = window.show();
                                 let _ = window.set_focus();
                             }
                         }
-                        _ => {}
-                    }
-                })
-                .on_tray_icon_event(|tray, event| {
-                    if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } = event {
-                        if let Some(window) = tray.app_handle().get_webview_window("main") {
-                            let _ = window.show();
-                            let _ = window.set_focus();
-                        }
-                    }
-                })
-                .build(app)?;
+                    })
+                    .build(app)?;
+            }
 
             Ok(())
         })

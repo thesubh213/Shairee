@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -31,18 +32,25 @@ jobs:
       - name: Compile Windows Packages
         run: npx tauri build
 
+      - name: Prepare Clean Release Binaries
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path build-output
+          Copy-Item src-tauri/target/release/bundle/msi/*.msi build-output/Shairee.msi
+          Copy-Item src-tauri/target/release/bundle/nsis/*.exe build-output/Shairee.exe
+
       - name: Upload Windows MSI Artifact
         uses: actions/upload-artifact@v4
         with:
           name: windows-msi
-          path: src-tauri/target/release/bundle/msi/*.msi
+          path: build-output/Shairee.msi
           if-no-files-found: error
 
       - name: Upload Windows EXE Artifact
         uses: actions/upload-artifact@v4
         with:
           name: windows-exe
-          path: src-tauri/target/release/bundle/nsis/*.exe
+          path: build-output/Shairee.exe
           if-no-files-found: error
 
   build-android:
@@ -82,16 +90,95 @@ jobs:
       - name: Initialize Android Platform
         run: npx tauri android init --ci
 
+      - name: Inject Android P2P Sharing Capabilities
+        run: |
+          python3 -c '
+          import re
+          # Manifest injection
+          manifest_path = "src-tauri/gen/android/app/src/main/AndroidManifest.xml"
+          with open(manifest_path, "r") as f:
+              manifest = f.read()
+          perms = """
+              <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
+              <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+          """
+          if "CHANGE_WIFI_MULTICAST_STATE" not in manifest:
+              manifest = manifest.replace("<application", perms + "    <application")
+          with open(manifest_path, "w") as f:
+              f.write(manifest)
+          
+          # MainActivity injection
+          activity_path = "src-tauri/gen/android/app/src/main/java/com/shairee/portal/MainActivity.kt"
+          with open(activity_path, "r") as f:
+              activity = f.read()
+          if "WifiManager" not in activity:
+              activity = re.sub(
+                  r"(import com\.tauri\.webview\.TauriActivity)",
+                  r"\1\nimport android.content.Context\nimport android.net.wifi.WifiManager",
+                  activity
+              )
+          if "multicastLock" not in activity:
+              class_body = """
+              private var multicastLock: WifiManager.MulticastLock? = null
+          
+              override fun onCreate(savedInstanceState: Bundle?) {
+                  super.onCreate(savedInstanceState)
+                  try {
+                      val wifi = applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+                      multicastLock = wifi.createMulticastLock("ShaireeMulticastLock")
+                      multicastLock?.setReferenceCounted(true)
+                      multicastLock?.acquire()
+                  } catch (e: Exception) {
+                      e.printStackTrace()
+                  }
+              }
+          
+              override fun onDestroy() {
+                  super.onDestroy()
+                  try {
+                      multicastLock?.let {
+                          if (it.isHeld) {
+                              it.release()
+                          }
+                      }
+                  } catch (e: Exception) {
+                      e.printStackTrace()
+                  }
+              }"""
+              activity = re.sub(
+                  r"(class\s+MainActivity\s*:\s*TauriActivity\s*\(\s*\)\s*\{|class\s+MainActivity\s*:\s*TauriActivity\s*\{)",
+                  r"\1\n" + class_body,
+                  activity
+              )
+          with open(activity_path, "w") as f:
+              f.write(activity)
+          '
+
       - name: Compile Android Release APK
-        run: npx tauri android build
-        env:
-          NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/26.1.10909125
+        run: |
+          export NDK_HOME=$ANDROID_HOME/ndk/26.1.10909125
+          npx tauri android build
+
+      - name: Generate Release Keystore and Sign APK
+        run: |
+          # 1. Generate release keystore
+          keytool -genkeypair -v -keystore release.keystore -alias shairee -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Shairee, OU=Shairee, O=Shairee, L=Shairee, S=Shairee, C=US" -storepass password -keypass password
+          
+          # 2. Find output unsigned release APK
+          unsigned_apk=$(find src-tauri/gen/android/app/build/outputs/apk/release -name "*.apk" | head -n 1)
+          
+          # 3. Find apksigner
+          apksigner_path=$(find $ANDROID_HOME/build-tools -name apksigner | sort -V | tail -n 1)
+          
+          # 4. Sign the APK and put it directly in build-output/Shairee.apk
+          mkdir -p build-output
+          $apksigner_path sign --ks release.keystore --ks-key-alias shairee --ks-pass pass:password --key-pass pass:password --out build-output/Shairee.apk $unsigned_apk
 
       - name: Upload Android APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: android-apk
-          path: src-tauri/gen/android/app/build/outputs/apk/release/*.apk
+          path: build-output/Shairee.apk
           if-no-files-found: error
 
   publish-release:
@@ -124,11 +211,12 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            release-artifacts/**/*.msi
-            release-artifacts/**/*.exe
-            release-artifacts/**/*.apk
+            release-artifacts/Shairee.msi
+            release-artifacts/Shairee.exe
+            release-artifacts/Shairee.apk
           draft: false
           prerelease: false
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+

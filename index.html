@@ -24,7 +24,7 @@
 
 
     <!-- Header Navigation -->
-    <header class="h-16 border-b border-hairline bg-canvas flex items-center justify-between px-6 sticky top-0 z-40 select-none">
+    <header class="border-b border-hairline bg-canvas flex items-center justify-between px-3 sm:px-6 py-3 sticky top-0 z-40 select-none safe-top">
       <!-- Brand Logo & Title -->
       <div class="flex items-center gap-3">
         <!-- Hotspot + Electric Zap SVG Icon -->
@@ -50,9 +50,9 @@
       </nav>
 
       <!-- Right controls cluster -->
-      <div class="flex items-center gap-2 sm:gap-4">
+      <div class="flex items-center gap-1.5 sm:gap-4">
         <!-- Search Pill -->
-        <div class="relative w-24 xs:w-32 sm:w-48 lg:w-64">
+        <div class="relative w-20 sm:w-48 lg:w-64">
           <input type="text" id="search-bar" placeholder="Search..." class="w-full h-9 bg-soft-cloud text-xs font-medium text-ink px-3 sm:px-4 py-2 rounded-full border border-transparent focus-halo" />
         </div>
 
@@ -88,7 +88,7 @@
     </header>
 
     <!-- Editorial Hero Campaign Section -->
-    <section class="relative bg-ink text-canvas py-12 md:py-20 px-8 flex flex-col justify-end min-h-[280px] border-b border-hairline overflow-hidden select-none">
+    <section class="relative bg-ink text-canvas py-8 sm:py-16 px-6 sm:px-8 flex flex-col justify-end min-h-[180px] sm:min-h-[280px] border-b border-hairline overflow-hidden select-none">
       <!-- Background Abstract Grid/Geometric Art -->
       <div class="absolute inset-0 z-0 opacity-15 pointer-events-none">
         <div class="absolute inset-0" style="background-image: linear-gradient(var(--colors-hairline) 1px, transparent 1px), linear-gradient(90deg, var(--colors-hairline) 1px, transparent 1px); background-size: 40px 40px;"></div>
@@ -97,7 +97,7 @@
       
       <div class="relative z-10 max-w-6xl mx-auto w-full flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div>
-          <h2 class="font-display text-4xl sm:text-6xl md:text-8xl leading-[0.85] tracking-tight uppercase max-w-2xl">
+          <h2 class="font-display text-3xl sm:text-6xl md:text-8xl leading-[0.85] tracking-tight uppercase max-w-2xl">
             FAST. LOCAL. UNRESTRICTED.
           </h2>
           <p class="text-xs md:text-sm font-semibold tracking-wider opacity-60 uppercase mt-4 max-w-md">
@@ -304,7 +304,7 @@
     <div id="modal-overlay" class="fixed inset-0 z-50 flex items-center justify-center p-4 transition-opacity duration-300 opacity-0 pointer-events-none bg-ink/40 backdrop-blur-xs">
       
       <!-- Settings Modal -->
-      <div id="settings-modal" class="w-full max-w-sm bg-canvas border border-ink p-6 transition-all duration-300 scale-95 hidden opacity-0 flex flex-col gap-6">
+      <div id="settings-modal" class="w-full max-w-sm bg-canvas border border-ink p-6 transition-all duration-300 scale-95 hidden opacity-0 flex flex-col gap-6 max-h-[calc(100vh-2rem)] overflow-y-auto custom-scrollbar">
         <div class="flex items-center justify-between border-b border-hairline pb-2 select-none">
           <h2 class="font-display text-2xl tracking-wide uppercase">PORTAL SETTINGS</h2>
           <button id="btn-close-settings" class="text-ink hover:opacity-60 transition-opacity">
@@ -367,7 +367,7 @@
       </div>
 
       <!-- Network Discovery / Receive Modal -->
-      <div id="discovery-modal" class="w-full max-w-md bg-canvas border border-ink p-6 transition-all duration-300 scale-95 hidden opacity-0 flex flex-col gap-6">
+      <div id="discovery-modal" class="w-full max-w-md bg-canvas border border-ink p-6 transition-all duration-300 scale-95 hidden opacity-0 flex flex-col gap-6 max-h-[calc(100vh-2rem)] overflow-y-auto custom-scrollbar">
         <div class="flex items-center justify-between border-b border-hairline pb-2 select-none">
           <h2 class="font-display text-2xl tracking-wide uppercase">RECEIVE PORTAL</h2>
           <button id="btn-close-discovery" class="text-ink hover:opacity-60 transition-opacity">

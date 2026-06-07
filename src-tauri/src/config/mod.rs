@@ -42,12 +42,12 @@ impl Default for AppConfig {
     fn default() -> Self {
         Self {
             port: 8384,
-            auto_start_server: false,
+            auto_start_server: true,
             notify_on_download: true,
             max_concurrent_downloads: 0,
             require_pin: false,
             pin_code: None,
-            server_name: "Shairee".into(),
+            server_name: crate::network::discovery::get_device_name(),
             auto_detect_ip: true,
             manual_ip: None,
             bind_address: "0.0.0.0".into(),

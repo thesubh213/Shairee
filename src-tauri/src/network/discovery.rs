@@ -119,7 +119,7 @@ pub fn start_discovery_listener(
                     if msg == "SHAIREE_DISCOVER" {
                         let state = app_state.read();
                         if state.server_running {
-                            let device_name = get_device_name();
+                            let device_name = state.config.server_name.clone();
                             let port = state.server_port;
                             let require_pin = state.config.require_pin;
                             let reply = format!("SHAIREE_SERVER|{}|{}|{}", device_name, port, require_pin);

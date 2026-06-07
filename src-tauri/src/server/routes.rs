@@ -526,6 +526,20 @@ async fn download_file_from_remote(
         err_msg.to_string()
     };
 
+    #[cfg(target_os = "android")]
+    let download_dir = {
+        let mut path = std::path::PathBuf::from("/storage/emulated/0/Android/data/com.shairee.portal/files/Download");
+        if let Ok(local_path) = app.path().app_local_data_dir() {
+            if !path.exists() {
+                let _ = std::fs::create_dir_all(&path);
+            }
+            if !path.exists() {
+                path = local_path.join("Download");
+            }
+        }
+        path
+    };
+    #[cfg(not(target_os = "android"))]
     let download_dir = app.path().download_dir().map_err(|e| mark_failed(&e.to_string()))?;
     
     // Ensure downloads folder exists
