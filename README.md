@@ -76,15 +76,15 @@ npx tauri build
 ### 4. Build Android APK Target
 Compiling for Android requires the Android SDK, NDK, and Java build tools. 
 
-1. **Setup Java SDK (JDK 17+):**
-   Ensure Java 17 or higher is installed and the `JAVA_HOME` environment variable is configured.
+1. **Setup Java SDK (JDK 21):**
+   Ensure **Java 21** (e.g., Eclipse Adoptium Temurin 21) is installed and the `JAVA_HOME` environment variable is configured. The Gradle wrapper requires JDK 21 to avoid compilation version mismatches.
 2. **Install Android SDK & NDK:**
    Open SDK Manager in Android Studio and ensure the following are installed:
    - Android SDK Platform-Tools
    - Android SDK Build-Tools
    - NDK (Side-by-side)
 3. **Configure Environment Variables:**
-   Add the following variables to your environment:
+   Add the following variables to your environment (clean up any double quotes in your `PATH` variable if you encounter Gradle build execution issues):
    - `ANDROID_HOME` = `C:\Users\<Your-Username>\AppData\Local\Android\Sdk`
    - `NDK_HOME` = `C:\Users\<Your-Username>\AppData\Local\Android\Sdk\ndk\<NDK-Version>`
 4. **Compile the APK:**
@@ -94,13 +94,23 @@ Compiling for Android requires the Android SDK, NDK, and Java build tools.
    rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android
 
    # Initialize android platform in Tauri project (run once)
-   npx tauri android init --ci
+   npm run tauri android init --ci
 
    # Build the release APK
-   npx tauri android build
+   npm run tauri android build --apk
    ```
    The generated APK will be output at:
-   `src-tauri/gen/android/app/build/outputs/apk/release/app-release.apk`
+   `src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release-unsigned.apk`
+
+### 🛠️ Android Studio Development (Run / Debug)
+When debugging the application on a real device or emulator using Android Studio, you must boot the Tauri development daemon in a background terminal before clicking the **Run** (green play) button:
+1. In your project root terminal, run:
+   ```powershell
+   # Cleans environment path and starts the dev server:
+   $env:PATH = $env:PATH.Replace('"', ''); $env:JAVA_HOME = "C:\Program Files\Eclipse Adoptium\jdk-21.0.11.10-hotspot"; npm run tauri android dev
+   ```
+2. Wait for the dev server to start and launch Android Studio automatically.
+3. In Android Studio, select your emulator and click **Run**. This connects to the running WebSocket daemon to sync CLI settings, build the Rust binary, and deploy the application.
 
 
 ---

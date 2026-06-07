@@ -21,3 +21,12 @@ Thumbs.db
 # Environment
 .env
 .env.local
+
+# Keystore and signing files
+*.keystore
+*.jks
+*.pepk
+*.json.properties
+*.jks.properties
+keystore.properties
+key.properties
