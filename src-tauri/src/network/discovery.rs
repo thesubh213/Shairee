@@ -97,6 +97,32 @@ pub fn get_device_name() -> String {
     "Shairee Device".to_string()
 }
 
+/// Proactively broadcast presence to the LAN so receivers already scanning can find us.
+/// Call this whenever the server starts.
+pub fn broadcast_presence(device_name: &str, port: u16, require_pin: bool) {
+    let msg = format!("SHAIREE_SERVER|{}|{}|{}", device_name, port, require_pin);
+    let msg_bytes = msg.into_bytes();
+    std::thread::spawn(move || {
+        match std::net::UdpSocket::bind("0.0.0.0:0") {
+            Ok(socket) => {
+                if let Err(e) = socket.set_broadcast(true) {
+                    log::warn!("Failed to enable broadcast for presence announcement: {e}");
+                    return;
+                }
+                // Send 3 rapid broadcasts to improve reliability over lossy networks
+                for _ in 0..3 {
+                    let _ = socket.send_to(&msg_bytes, "255.255.255.255:8389");
+                    std::thread::sleep(std::time::Duration::from_millis(150));
+                }
+                log::info!("Broadcasted presence: {} on port {}", std::str::from_utf8(&msg_bytes).unwrap_or("?"), port);
+            }
+            Err(e) => {
+                log::warn!("Failed to bind UDP socket for presence broadcast: {e}");
+            }
+        }
+    });
+}
+
 /// Listen for incoming UDP discovery broadcasts on port 8389.
 pub fn start_discovery_listener(
     app_state: std::sync::Arc<parking_lot::RwLock<crate::state::AppState>>,
@@ -117,6 +143,7 @@ pub fn start_discovery_listener(
                 Ok((amt, src)) => {
                     let msg = String::from_utf8_lossy(&buf[..amt]);
                     if msg == "SHAIREE_DISCOVER" {
+                        // Someone is scanning — reply only if our server is running
                         let state = app_state.read();
                         if state.server_running {
                             let device_name = state.config.server_name.clone();

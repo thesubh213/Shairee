@@ -43,12 +43,18 @@
     transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
     transition-duration: 200ms;
   }
+
+  /* Prevent layout shift from system scrollbars */
+  html {
+    overflow-y: scroll;
+  }
 }
 
 @layer utilities {
+  /* ─── Scrollbar ─────────────────────────────────────────────────── */
   .custom-scrollbar::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+    width: 4px;
+    height: 4px;
   }
   .custom-scrollbar::-webkit-scrollbar-track {
     background: transparent;
@@ -61,18 +67,18 @@
     background: var(--colors-hairline-soft);
   }
 
-  /* Nike tap collapse feedback */
+  /* ─── Button tap feedback ───────────────────────────────────────── */
   .btn-tap-collapse {
     transition-property: all;
     transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
     transition-duration: 150ms;
   }
-  .btn-tap-collapse:active {
-    transform: scale(0.95);
+  .btn-tap-collapse:active:not(:disabled) {
+    transform: scale(0.94);
     opacity: 0.75;
   }
 
-  /* Nike search pill focus halo */
+  /* ─── Input focus halo ──────────────────────────────────────────── */
   .focus-halo {
     transition-property: all;
     transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
@@ -83,14 +89,88 @@
   .focus-halo:focus {
     background-color: var(--colors-canvas);
     border-color: var(--colors-ink);
-    box-shadow: 0 0 0 10px var(--colors-soft-cloud);
+    box-shadow: 0 0 0 8px var(--colors-soft-cloud);
+    outline: none;
   }
 
-  /* Mobile notches & gestures safe area */
+  /* ─── Safe area insets (iOS/Android notch support) ──────────────── */
   .safe-top {
     padding-top: env(safe-area-inset-top, 0px);
   }
   .safe-bottom {
     padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  /* ─── Fade in animation ─────────────────────────────────────────── */
+  .animate-fade-in {
+    animation: fadeIn 0.2s ease-in-out forwards;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ─── Slow spin (for loading icons) ────────────────────────────── */
+  .animate-spin-slow {
+    animation: spin 2s linear infinite;
+  }
+
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+  }
+
+  /* ─── Soft pulse (in-progress transfers) ────────────────────────── */
+  .animate-pulse-soft {
+    animation: pulseSoft 1.5s ease-in-out infinite;
+  }
+
+  @keyframes pulseSoft {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.5; }
+  }
+
+  /* ─── File card hover lift ───────────────────────────────────────── */
+  #file-list li:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+  }
+  [data-theme="dark"] #file-list li:hover {
+    box-shadow: 0 4px 16px rgba(255,255,255,0.04);
+  }
+
+  /* ─── Discovery modal list item states ─────────────────────────── */
+  #discovery-list li:first-child {
+    border-top: none;
+  }
+
+  /* ─── Drop zone drag active state ───────────────────────────────── */
+  #drop-zone.border-info {
+    background-color: rgba(17, 81, 255, 0.04);
+  }
+
+  /* ─── Mobile touch optimizations ───────────────────────────────── */
+  @media (max-width: 640px) {
+    /* Slightly larger touch targets on mobile */
+    .btn-tap-collapse {
+      min-height: 36px;
+    }
+
+    /* Prevent text zoom on input focus on iOS */
+    input, textarea, select {
+      font-size: 16px !important;
+    }
+
+    /* Compact file grid on small screens */
+    #file-list {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  /* ─── Animations for modal overlay ─────────────────────────────── */
+  #modal-overlay {
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
   }
 }

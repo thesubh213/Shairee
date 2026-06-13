@@ -42,7 +42,7 @@ impl Default for AppConfig {
     fn default() -> Self {
         Self {
             port: 8384,
-            auto_start_server: true,
+            auto_start_server: false,
             notify_on_download: true,
             max_concurrent_downloads: 0,
             require_pin: false,

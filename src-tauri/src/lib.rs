@@ -53,6 +53,10 @@ async fn start_server(
     let ips = network::discovery::get_all_local_ips();
     app_state.local_ip = ips.first().cloned();
     
+    // Read broadcast data before releasing the lock
+    let device_name = app_state.config.server_name.clone();
+    let require_pin = app_state.config.require_pin;
+
     // Start Actix server
     match server::start_server(state.inner().clone(), app.clone(), port) {
         Ok(handle) => {
@@ -75,6 +79,10 @@ async fn start_server(
             app_state.server_url = Some(url.clone());
             
             let _ = app.emit("server-started", serde_json::json!({ "url": url }));
+
+            // Proactively broadcast presence so receivers already scanning can find us
+            network::discovery::broadcast_presence(&device_name, port, require_pin);
+
             Ok(url)
         }
         Err(e) => Err(e),
@@ -456,31 +464,14 @@ pub fn run() {
             // Start the UDP discovery background listener
             network::discovery::start_discovery_listener(app_state_clone.clone(), app.handle().clone());
 
-            // Auto-start Actix HTTP/WS server on launch for native P2P connectivity
-            let port = app_state_clone.read().config.port;
+            // Initialize local IP (but do NOT auto-start the server — user must press Start)
             let ips = network::discovery::get_all_local_ips();
             {
                 let mut state = app_state_clone.write();
                 state.local_ip = ips.first().cloned();
             }
-            match server::start_server(app_state_clone.clone(), app.handle().clone(), port) {
-                Ok(handle) => {
-                    let (tx, rx) = tokio::sync::oneshot::channel();
-                    tauri::async_runtime::spawn(async move {
-                        let _ = rx.await;
-                        handle.stop(true).await;
-                    });
-                    let mut state = app_state_clone.write();
-                    state.server_stop_tx = Some(tx);
-                    state.server_running = true;
-                    state.server_port = port;
-                    let ip = state.local_ip.clone().unwrap_or_else(|| "127.0.0.1".into());
-                    state.server_url = Some(format!("http://{}:{}", ip, port));
-                }
-                Err(e) => {
-                    log::error!("Failed to auto-start sharing server: {e}");
-                }
-            }
+            // Note: Server auto-start is intentionally disabled. The user must press
+            // "Start Sharing Portal" to begin sharing. This also means no broadcast fires on boot.
 
             // Check for firewall rule (Windows) using the dynamically configured port!
             #[cfg(target_os = "windows")]
