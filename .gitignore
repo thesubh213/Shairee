@@ -23,7 +23,7 @@ Thumbs.db
 .env.local
 
 # Keystore and signing files
-*.keystore
+# *.keystore
 *.jks
 *.pepk
 *.json.properties

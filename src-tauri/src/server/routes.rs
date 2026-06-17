@@ -489,6 +489,7 @@ pub struct IncomingFileRequest {
     pub sender_ip: String,
     pub sender_port: u16,
     pub files: Vec<IncomingFileInfo>,
+    pub pin: Option<String>,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -500,13 +501,14 @@ pub struct IncomingFileInfo {
 }
 
 /// Helper function to asynchronously pull files from sender and save to Downloads
-async fn download_file_from_remote(
+pub async fn download_file_from_remote(
     app: tauri::AppHandle,
     sender_ip: String,
     sender_port: u16,
     file_id: String,
     file_name: String,
     file_size: u64,
+    pin: Option<String>,
 ) -> Result<(), String> {
     use tauri::Manager;
     
@@ -547,7 +549,11 @@ async fn download_file_from_remote(
     let target_path = download_dir.join(&file_name);
 
     let client = reqwest::Client::new();
-    let url = format!("http://{}:{}/api/download/{}", sender_ip, sender_port, file_id);
+    let url = if let Some(p) = &pin {
+        format!("http://{}:{}/api/download/{}?auth={}", sender_ip, sender_port, file_id, percent_encoding::utf8_percent_encode(p, percent_encoding::NON_ALPHANUMERIC))
+    } else {
+        format!("http://{}:{}/api/download/{}", sender_ip, sender_port, file_id)
+    };
 
     let mut response = match client.get(&url).send().await {
         Ok(r) => r,
@@ -631,21 +637,27 @@ async fn download_file_from_remote(
 
 /// Endpoint called by the sender to request permission to transfer files.
 pub async fn receive_request(
+    req: HttpRequest,
     payload: web::Json<IncomingFileRequest>,
     state: web::Data<ServerState>,
 ) -> impl Responder {
     let (tx, rx) = tokio::sync::oneshot::channel();
     
+    // Resolve peer IP address (with fallback to self-reported payload IP)
+    let peer_ip = req.peer_addr()
+        .map(|addr| addr.ip().to_string())
+        .unwrap_or_else(|| payload.sender_ip.clone());
+
     // Save the responder channel in AppState
     {
         let mut app_state = state.app_state.write();
-        app_state.pending_receives.insert(payload.sender_ip.clone(), tx);
+        app_state.pending_receives.insert(peer_ip.clone(), tx);
     }
 
     // Emit event to frontend UI to trigger the accept/decline dialog
     let _ = state.tauri_app.emit("incoming-transfer-request", serde_json::json!({
         "senderName": payload.sender_name,
-        "senderIp": payload.sender_ip,
+        "senderIp": peer_ip,
         "senderPort": payload.sender_port,
         "files": payload.files,
     }));
@@ -655,9 +667,10 @@ pub async fn receive_request(
         Ok(Ok(accepted)) => {
             if accepted {
                 let app_handle = state.tauri_app.clone();
-                let sender_ip = payload.sender_ip.clone();
+                let sender_ip_clone = peer_ip.clone();
                 let sender_port = payload.sender_port;
                 let files = payload.files.clone();
+                let pin = payload.pin.clone();
                 
                 // Spawn async download task for the accepted files
                 tauri::async_runtime::spawn(async move {
@@ -665,11 +678,12 @@ pub async fn receive_request(
                         log::info!("Starting background pull for: {} ({} bytes)", f.name, f.size);
                         match download_file_from_remote(
                             app_handle.clone(),
-                            sender_ip.clone(),
+                            sender_ip_clone.clone(),
                             sender_port,
                             f.id.clone(),
                             f.name.clone(),
                             f.size,
+                            pin.clone(),
                         ).await {
                             Ok(_) => log::info!("Successfully pulled and saved file {}", f.name),
                             Err(e) => log::error!("Failed pulling remote file {}: {}", f.name, e),
@@ -686,7 +700,7 @@ pub async fn receive_request(
             // Remove the channel on timeout or drop
             {
                 let mut app_state = state.app_state.write();
-                app_state.pending_receives.remove(&payload.sender_ip);
+                app_state.pending_receives.remove(&peer_ip);
             }
             HttpResponse::Ok().json(serde_json::json!({ "status": "timeout" }))
         }

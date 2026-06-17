@@ -1,6 +1,6 @@
 [package]
 name = "shairee"
-version = "1.0.2"
+version = "1.0.3"
 description = "Ultra-fast local file sharing from Windows to Android"
 authors = ["Shairee"]
 edition = "2021"
@@ -58,6 +58,9 @@ thiserror = "2"
 walkdir = "2"
 zip = { version = "2", default-features = false, features = ["deflate"] }
 open = "5"
+
+[target.'cfg(target_os = "android")'.dependencies]
+jni = "0.21"
 
 [features]
 default = ["custom-protocol"]

@@ -104,6 +104,47 @@ async fn stop_server(
     Ok(())
 }
 
+#[cfg(target_os = "android")]
+fn copy_content_uri_to_cache(app: &tauri::AppHandle, uri: &str) -> Result<String, String> {
+    use tauri::Manager;
+    let window = app.get_webview_window("main")
+        .ok_or_else(|| "Failed to get main window".to_string())?;
+    
+    let (tx, rx) = std::sync::mpsc::channel();
+    let uri_str = uri.to_string();
+    
+    window.with_webview(move |webview| {
+        webview.jni_handle().exec(move |env, context, _webview| {
+            let res = (|| -> Result<String, String> {
+                let uri_jstring = env.new_string(&uri_str)
+                    .map_err(|e| format!("JNI error creating string: {:?}", e))?;
+                
+                let result_jvalue = env.call_method(
+                    context,
+                    "copyContentUriToCache",
+                    "(Ljava/lang/String;)Ljava/lang/String;",
+                    &[jni::objects::JValue::from(&uri_jstring)]
+                ).map_err(|e| format!("JNI call failed: {:?}", e))?;
+
+                let result_jobject = result_jvalue.l()
+                    .map_err(|e| format!("JNI result was not an object: {:?}", e))?;
+                
+                let result_jstring: &jni::objects::JString = (&result_jobject).into();
+                
+                let result_str: String = env.get_string(result_jstring)
+                    .map_err(|e| format!("JNI string conversion failed: {:?}", e))?
+                    .into();
+                
+                Ok(result_str)
+            })();
+            let _ = tx.send(res);
+        });
+    }).map_err(|e| e.to_string())?;
+    
+    rx.recv()
+        .map_err(|e| format!("JNI thread disconnected: {}", e))?
+}
+
 #[tauri::command]
 async fn add_files(
     app: tauri::AppHandle,
@@ -114,7 +155,24 @@ async fn add_files(
     let mut added = Vec::new();
 
     for path_str in paths {
-        let path = std::path::PathBuf::from(path_str);
+        let resolved_path = if path_str.starts_with("content://") {
+            #[cfg(target_os = "android")]
+            {
+                match copy_content_uri_to_cache(&app, &path_str) {
+                    Ok(p) => p,
+                    Err(e) => {
+                        log::error!("Failed to copy content URI: {e}");
+                        continue;
+                    }
+                }
+            }
+            #[cfg(not(target_os = "android"))]
+            path_str
+        } else {
+            path_str
+        };
+
+        let path = std::path::PathBuf::from(resolved_path);
         if path.exists() {
             if let Ok(info) = app_state.add_file(path) {
                 added.push(info);
@@ -203,6 +261,7 @@ pub struct FrontendAppConfig {
     pub password: Option<String>,
     pub auto_start: bool,
     pub show_notifications: bool,
+    pub username: String,
 }
 
 #[tauri::command]
@@ -216,6 +275,7 @@ async fn get_config(
         password: if config.require_pin { config.pin_code.clone() } else { None },
         auto_start: config.auto_start_server,
         show_notifications: config.notify_on_download,
+        username: config.server_name.clone(),
     })
 }
 
@@ -236,6 +296,7 @@ async fn update_config(
         notify_on_download: config.show_notifications,
         require_pin,
         pin_code,
+        server_name: config.username.clone(),
         ..app_state.config.clone()
     };
     
@@ -300,50 +361,84 @@ async fn update_config(
 #[tauri::command]
 async fn discover_devices() -> Result<Vec<serde_json::Value>, AppError> {
     tauri::async_runtime::spawn_blocking(move || {
-        let socket = std::net::UdpSocket::bind("0.0.0.0:0")
-            .map_err(|e| AppError::Server(format!("Failed to bind UDP: {e}")))?;
-        socket.set_broadcast(true)
-            .map_err(|e| AppError::Server(format!("Failed set broadcast: {e}")))?;
-        socket.set_read_timeout(Some(std::time::Duration::from_millis(1500)))
-            .map_err(|e| AppError::Server(format!("Failed timeout: {e}")))?;
+        let local_ips = network::discovery::get_all_local_ips();
+        let mut sockets = Vec::new();
 
-        let _ = socket.send_to(b"SHAIREE_DISCOVER", "255.255.255.255:8389");
+        for ip in &local_ips {
+            if let Ok(addr) = format!("{}:0", ip).parse::<std::net::SocketAddr>() {
+                if let Ok(socket) = std::net::UdpSocket::bind(addr) {
+                    let _ = socket.set_broadcast(true);
+                    let _ = socket.set_nonblocking(true);
+                    
+                    // Send to general broadcast
+                    let _ = socket.send_to(b"SHAIREE_DISCOVER", "255.255.255.255:8389");
+                    
+                    // Send to class C subnet broadcast
+                    if let std::net::IpAddr::V4(ipv4) = addr.ip() {
+                        let octets = ipv4.octets();
+                        let subnet_bcast = format!("{}.{}.{}.255:8389", octets[0], octets[1], octets[2]);
+                        let _ = socket.send_to(b"SHAIREE_DISCOVER", &subnet_bcast);
+                    }
+                    sockets.push(socket);
+                }
+            }
+        }
 
-        let mut devices = Vec::new();
-        let mut seen = std::collections::HashSet::new();
+        // Fallback to binding 0.0.0.0 if no specific interfaces bound successfully
+        if sockets.is_empty() {
+            if let Ok(socket) = std::net::UdpSocket::bind("0.0.0.0:0") {
+                let _ = socket.set_broadcast(true);
+                let _ = socket.set_nonblocking(true);
+                let _ = socket.send_to(b"SHAIREE_DISCOVER", "255.255.255.255:8389");
+                sockets.push(socket);
+            }
+        }
+
+        let mut groups: std::collections::HashMap<(String, u16, bool), Vec<String>> = std::collections::HashMap::new();
         let mut buf = [0u8; 1024];
 
         let start = std::time::Instant::now();
         while start.elapsed() < std::time::Duration::from_millis(1500) {
-            match socket.recv_from(&mut buf) {
-                Ok((amt, src)) => {
-                    let msg = String::from_utf8_lossy(&buf[..amt]);
-                    if msg.starts_with("SHAIREE_SERVER|") {
-                        let parts: Vec<&str> = msg.split('|').collect();
-                        if parts.len() >= 4 {
-                            let name = parts[1].to_string();
-                            let port_str = parts[2];
-                            let require_pin_str = parts[3];
-                            
-                            let ip = src.ip().to_string();
-                            let port = port_str.parse::<u16>().unwrap_or(8384);
-                            let require_pin = require_pin_str == "true";
+            for socket in &sockets {
+                match socket.recv_from(&mut buf) {
+                    Ok((amt, src)) => {
+                        let msg = String::from_utf8_lossy(&buf[..amt]);
+                        if msg.starts_with("SHAIREE_SERVER|") {
+                            let parts: Vec<&str> = msg.split('|').collect();
+                            if parts.len() >= 4 {
+                                let name = parts[1].to_string();
+                                let port_str = parts[2];
+                                let require_pin_str = parts[3];
+                                
+                                let ip = src.ip().to_string();
+                                let port = port_str.parse::<u16>().unwrap_or(8384);
+                                let require_pin = require_pin_str == "true";
 
-                            let unique_key = format!("{}:{}", ip, port);
-                            if !seen.contains(&unique_key) {
-                                seen.insert(unique_key);
-                                devices.push(serde_json::json!({
-                                    "ip": ip,
-                                    "name": name,
-                                    "port": port,
-                                    "requirePin": require_pin
-                                }));
+                                let key = (name, port, require_pin);
+                                let ips = groups.entry(key).or_insert_with(Vec::new);
+                                if !ips.contains(&ip) {
+                                    ips.push(ip);
+                                }
                             }
                         }
                     }
+                    Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                        // No data yet on this interface
+                    }
+                    Err(_) => {}
                 }
-                Err(_) => {}
             }
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+
+        let mut devices = Vec::new();
+        for ((name, port, require_pin), ips) in groups {
+            devices.push(serde_json::json!({
+                "name": name,
+                "ips": ips,
+                "port": port,
+                "requirePin": require_pin
+            }));
         }
 
         Ok(devices)
@@ -365,11 +460,11 @@ async fn respond_to_receive_request(
 
 #[tauri::command]
 async fn send_files_to_device(
-    target_ip: String,
+    target_ips: Vec<String>,
     target_port: u16,
     state: tauri::State<'_, Arc<parking_lot::RwLock<AppState>>>,
 ) -> Result<serde_json::Value, AppError> {
-    let (sender_name, sender_port, sender_ip, files) = {
+    let (sender_name, sender_port, sender_ip, files, pin) = {
         let app_state = state.read();
         let name = app_state.config.server_name.clone();
         let port = app_state.server_port;
@@ -379,7 +474,12 @@ async fn send_files_to_device(
                     .unwrap_or_else(|| "127.0.0.1".to_string())
             });
         let files = app_state.get_files_ordered();
-        (name, port, ip, files)
+        let pin = if app_state.config.require_pin {
+            app_state.config.pin_code.clone()
+        } else {
+            None
+        };
+        (name, port, ip, files, pin)
     };
 
     if files.is_empty() {
@@ -394,23 +494,37 @@ async fn send_files_to_device(
         })
     }).collect();
 
-    let payload = serde_json::json!({
-        "senderName": sender_name,
-        "senderIp": sender_ip,
-        "senderPort": sender_port,
-        "files": files_payload,
-    });
-
     tauri::async_runtime::spawn_blocking(move || {
         use std::io::{Read, Write};
-        let address = format!("{}:{}", target_ip, target_port);
-        let mut stream = std::net::TcpStream::connect_timeout(
-            &address.parse().map_err(|e| format!("Invalid receiver address {address}: {e}"))
-                .map_err(AppError::Server)?,
-            std::time::Duration::from_secs(5)
-        ).map_err(|e| AppError::Server(format!("Failed to connect to receiver at {address}: {e}")))?;
+        let mut stream_opt = None;
+        let mut connected_ip = None;
+
+        for ip in &target_ips {
+            let address = format!("{}:{}", ip, target_port);
+            if let Ok(addr) = address.parse() {
+                if let Ok(stream) = std::net::TcpStream::connect_timeout(&addr, std::time::Duration::from_secs(2)) {
+                    stream_opt = Some(stream);
+                    connected_ip = Some(ip.clone());
+                    break;
+                }
+            }
+        }
+
+        let mut stream = stream_opt.ok_or_else(|| AppError::Server("Failed to connect to receiver on any IP address".into()))?;
+        let actual_sender_ip = stream.local_addr()
+            .map(|addr| addr.ip().to_string())
+            .unwrap_or(sender_ip);
+
+        let payload = serde_json::json!({
+            "senderName": sender_name,
+            "senderIp": actual_sender_ip,
+            "senderPort": sender_port,
+            "files": files_payload,
+            "pin": pin,
+        });
 
         let body = serde_json::to_string(&payload).map_err(|e| AppError::Server(e.to_string()))?;
+        let address = format!("{}:{}", connected_ip.unwrap(), target_port);
         let request = format!(
             "POST /api/receive-request HTTP/1.1\r\n\
              Host: {}\r\n\
@@ -437,6 +551,21 @@ async fn send_files_to_device(
             Err(AppError::Server("Invalid HTTP response".into()))
         }
     }).await.map_err(|e| AppError::Server(format!("Blocking task error: {e}")))?
+}
+
+#[tauri::command]
+async fn download_remote_file(
+    app: tauri::AppHandle,
+    sender_ip: String,
+    sender_port: u16,
+    file_id: String,
+    file_name: String,
+    file_size: u64,
+    pin: Option<String>,
+) -> Result<(), AppError> {
+    server::routes::download_file_from_remote(app, sender_ip, sender_port, file_id, file_name, file_size, pin)
+        .await
+        .map_err(AppError::Server)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -531,7 +660,8 @@ pub fn run() {
             update_config,
             discover_devices,
             respond_to_receive_request,
-            send_files_to_device
+            send_files_to_device,
+            download_remote_file
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

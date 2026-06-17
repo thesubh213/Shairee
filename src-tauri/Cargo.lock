@@ -3814,7 +3814,7 @@ dependencies = [
 
 [[package]]
 name = "shairee"
-version = "1.0.0"
+version = "1.0.3"
 dependencies = [
  "actix-cors",
  "actix-files",
@@ -3827,6 +3827,7 @@ dependencies = [
  "futures-util",
  "humansize",
  "image",
+ "jni",
  "local-ip-address",
  "log",
  "mime_guess",

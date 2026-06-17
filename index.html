@@ -118,6 +118,17 @@
       </div>
     </section>
 
+    <!-- Update Notification Banner -->
+    <div id="update-banner" class="hidden bg-info/10 border-b border-info px-4 py-3 text-xs font-semibold text-info flex items-center justify-between gap-4 select-none animate-fade-in">
+      <div class="flex items-center gap-2.5 min-w-0">
+        <span class="w-2.5 h-2.5 bg-info rounded-full animate-pulse-soft shrink-0"></span>
+        <span id="update-banner-text" class="truncate">New version available!</span>
+      </div>
+      <a id="update-banner-link" href="#" target="_blank" class="h-7 px-4 bg-ink text-canvas rounded-full text-[9px] uppercase tracking-wider flex items-center justify-center font-bold btn-tap-collapse shrink-0 hover:opacity-85 transition-opacity">
+        Update Now
+      </a>
+    </div>
+
     <!-- Core App Container Layout -->
     <main class="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 py-6 sm:py-8 grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 items-start">
       
@@ -329,6 +340,12 @@
         </div>
         
         <div class="flex flex-col gap-4">
+          <!-- Device Username -->
+          <div class="flex flex-col gap-1.5">
+            <label class="text-[10px] uppercase font-bold text-mute tracking-wider">Device Username / Name</label>
+            <input type="text" id="setting-username" placeholder="Shairee Device" class="w-full h-10 bg-soft-cloud text-xs font-semibold px-4 py-2 border border-transparent focus-halo rounded-lg" />
+          </div>
+
           <!-- Custom Port -->
           <div class="flex flex-col gap-1.5">
             <label class="text-[10px] uppercase font-bold text-mute tracking-wider">Port Number</label>
@@ -382,7 +399,7 @@
       <!-- Network Discovery Modal (Unified Send/Receive) -->
       <div id="discovery-modal" class="w-full max-w-md bg-canvas border border-ink p-5 sm:p-6 transition-all duration-300 scale-95 hidden opacity-0 flex flex-col gap-5 max-h-[calc(100vh-2rem)] overflow-y-auto custom-scrollbar rounded-2xl">
         <div class="flex items-center justify-between border-b border-hairline pb-2 select-none">
-          <h2 class="font-display text-2xl tracking-wide uppercase">DEVICES</h2>
+          <h2 id="discovery-modal-title" class="font-display text-2xl tracking-wide uppercase">DEVICES</h2>
           <button id="btn-close-discovery" class="w-9 h-9 rounded-full bg-soft-cloud flex items-center justify-center text-ink hover:opacity-70 transition-opacity">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"></path>
@@ -390,7 +407,8 @@
           </button>
         </div>
         
-        <div class="flex flex-col gap-4">
+        <!-- View 1: Device List -->
+        <div id="view-discovery-devices" class="flex flex-col gap-4">
           <!-- Status banner -->
           <div class="flex items-center gap-3 bg-soft-cloud p-3.5 border border-hairline rounded-lg select-none">
             <div class="w-4 h-4 text-ink animate-spin-slow flex items-center justify-center shrink-0">
@@ -422,11 +440,62 @@
             </div>
             <ul id="discovery-list" class="hidden flex flex-col divide-y divide-hairline"></ul>
           </div>
+
+          <!-- Help text -->
+          <div class="text-[10px] text-mute font-semibold tracking-wider leading-relaxed select-none bg-soft-cloud p-3 rounded-lg border border-hairline">
+            <span class="font-bold text-ink">How it works:</span> Devices running Shairee appear here automatically. Tap a device to view and pull its shared files, or click <span class="font-bold text-ink">"Send To"</span> to push your files.
+          </div>
         </div>
 
-        <!-- Help text -->
-        <div class="text-[10px] text-mute font-semibold tracking-wider leading-relaxed select-none bg-soft-cloud p-3 rounded-lg border border-hairline">
-          <span class="font-bold text-ink">How it works:</span> Devices running Shairee appear here automatically. Tap <span class="font-bold text-ink">"Send To"</span> to push your shared files to them, or tap <span class="font-bold text-ink">"Pull From"</span> to request their files.
+        <!-- View 2: PIN Input -->
+        <div id="view-discovery-pin" class="hidden flex flex-col gap-4">
+          <div class="text-center py-2 select-none">
+            <div class="w-10 h-10 rounded-full bg-soft-cloud border border-hairline flex items-center justify-center mx-auto mb-2">
+              <svg class="w-5 h-5 text-ink" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+              </svg>
+            </div>
+            <span id="pin-prompt-title" class="text-xs font-bold uppercase tracking-wider text-ink block">ENTER PIN FOR DEVICE</span>
+            <span class="text-[10px] font-medium text-mute uppercase tracking-wider mt-1 block">This portal requires a passcode to connect</span>
+          </div>
+
+          <input type="password" id="remote-pin-input" placeholder="••••" maxlength="8" class="w-full h-11 bg-soft-cloud text-center text-sm font-semibold tracking-widest px-4 border border-transparent focus-halo rounded-lg" />
+          <div id="remote-pin-error" class="hidden text-[10px] uppercase font-bold text-sale bg-sale/5 border border-sale/15 p-3 rounded-lg text-center">Incorrect PIN</div>
+
+          <div class="flex gap-2">
+            <button id="btn-remote-pin-back" class="flex-1 h-10 bg-soft-cloud text-ink font-semibold rounded-full text-[11px] uppercase tracking-wider btn-tap-collapse border border-hairline">
+              Back
+            </button>
+            <button id="btn-remote-pin-submit" class="flex-1 h-10 bg-ink text-canvas font-semibold rounded-full text-[11px] uppercase tracking-wider btn-tap-collapse">
+              Connect
+            </button>
+          </div>
+        </div>
+
+        <!-- View 3: Remote Files View -->
+        <div id="view-discovery-files" class="hidden flex flex-col gap-4">
+          <div class="flex items-center justify-between select-none">
+            <div class="flex flex-col min-w-0">
+              <span id="remote-device-title" class="text-xs font-bold uppercase tracking-wider text-ink truncate">REMOTE PORTAL</span>
+              <span id="remote-device-ip" class="text-[9px] font-mono text-mute tracking-wider mt-0.5 truncate">http://192.168.1.1:8384</span>
+            </div>
+            <button id="btn-remote-download-all" class="h-8 px-4 bg-ink text-canvas font-semibold rounded-full text-[9px] uppercase tracking-wider btn-tap-collapse shrink-0">
+              Download All
+            </button>
+          </div>
+
+          <!-- Files List -->
+          <div class="relative min-h-[140px] max-h-[300px] overflow-y-auto custom-scrollbar border border-hairline rounded-lg">
+            <div id="remote-files-empty" class="absolute inset-0 flex items-center justify-center text-center p-6 text-[11px] text-mute font-bold tracking-wider select-none bg-canvas rounded-lg hidden">
+              No files shared by this device
+            </div>
+            <ul id="remote-files-list" class="flex flex-col divide-y divide-hairline"></ul>
+          </div>
+
+          <button id="btn-remote-files-back" class="h-10 bg-soft-cloud text-ink font-semibold rounded-full text-[11px] uppercase tracking-wider btn-tap-collapse border border-hairline w-full">
+            Back to Devices
+          </button>
         </div>
       </div>
 

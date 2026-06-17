@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
+import { getVersion } from "@tauri-apps/api/app";
 
 function escapeHtml(str: string): string {
   if (!str) return "";
@@ -409,6 +410,9 @@ async function loadConfig() {
     requirePin = !!config.password;
     configPin = config.password || "";
 
+    const usernameInput = document.getElementById("setting-username") as HTMLInputElement;
+    if (usernameInput) usernameInput.value = config.username || "";
+
     const portInput = document.getElementById("setting-port") as HTMLInputElement;
     if (portInput) portInput.value = serverPort.toString();
 
@@ -449,15 +453,21 @@ function closeSettings() {
 }
 
 async function saveSettings() {
+  const usernameInput = document.getElementById("setting-username") as HTMLInputElement;
   const portInput = document.getElementById("setting-port") as HTMLInputElement;
   const passwordInput = document.getElementById("setting-password") as HTMLInputElement;
   const errorMsgEl = document.getElementById("settings-error-msg");
 
   if (errorMsgEl) { errorMsgEl.textContent = ""; errorMsgEl.classList.add("hidden"); }
 
+  const nextUsername = usernameInput?.value.trim() || "Shairee Device";
   const nextPort = parseInt(portInput?.value) || 8384;
   const nextPassword = requirePin ? passwordInput?.value.trim() : "";
 
+  if (!nextUsername) {
+    showError(errorMsgEl, "Username cannot be empty.");
+    return;
+  }
   if (isNaN(nextPort) || nextPort < 1 || nextPort > 65535) {
     showError(errorMsgEl, "Port must be between 1 and 65535.");
     return;
@@ -477,7 +487,8 @@ async function saveSettings() {
         port: nextPort,
         password: nextPassword || null,
         autoStart: false,
-        showNotifications: true
+        showNotifications: true,
+        username: nextUsername
       }
     });
 
@@ -553,10 +564,15 @@ function fnCloseClearConfirm() {
 
 let scanning = false;
 let incomingSenderIp = "";
+let scannedDevicesList: any[] = [];
+let activeRemoteDevice: any = null;
+let activeRemotePin = "";
+let activeRemoteFiles: any[] = [];
 
 function openDiscovery() {
   discoveryModalOpen = true;
   openModal("discovery-modal");
+  showDiscoverySubView('devices');
   scanDevices();
   // Start auto-refresh every 3 seconds
   if (discoveryAutoRefreshTimer) clearInterval(discoveryAutoRefreshTimer);
@@ -571,6 +587,244 @@ function closeDiscovery() {
   if (discoveryAutoRefreshTimer) {
     clearInterval(discoveryAutoRefreshTimer);
     discoveryAutoRefreshTimer = null;
+  }
+}
+
+function showDiscoverySubView(viewName: 'devices' | 'pin' | 'files') {
+  const devicesView = document.getElementById("view-discovery-devices");
+  const pinView = document.getElementById("view-discovery-pin");
+  const filesView = document.getElementById("view-discovery-files");
+  const titleEl = document.getElementById("discovery-modal-title");
+
+  devicesView?.classList.toggle("hidden", viewName !== 'devices');
+  pinView?.classList.toggle("hidden", viewName !== 'pin');
+  filesView?.classList.toggle("hidden", viewName !== 'files');
+
+  if (titleEl) {
+    if (viewName === 'devices') titleEl.textContent = "DEVICES";
+    else if (viewName === 'pin') titleEl.textContent = "VERIFY PIN";
+    else if (viewName === 'files') titleEl.textContent = "REMOTE PORTAL";
+  }
+}
+
+async function connectToDevice(device: any, pinCode = "") {
+  activeRemoteDevice = device;
+  activeRemotePin = pinCode;
+  
+  const errorEl = document.getElementById("remote-pin-error");
+  if (errorEl) errorEl.classList.add("hidden");
+
+  try {
+    const headers: any = {};
+    if (pinCode) {
+      headers["Authorization"] = "Bearer " + pinCode;
+    }
+    
+    // Fetch remote files list from the first reachable IP
+    let res: Response | null = null;
+    let workingIp = "";
+    
+    for (const ip of device.ips) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 2000);
+        
+        const testRes = await fetch(`http://${ip}:${device.port}/api/files`, {
+          headers,
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+        
+        if (testRes.ok || testRes.status === 401) {
+          res = testRes;
+          workingIp = ip;
+          break;
+        }
+      } catch (e) {
+        console.warn(`IP ${ip} not reachable for device ${device.name}:`, e);
+      }
+    }
+
+    if (!res) {
+      throw new Error("Could not reach the device on any of its IP addresses.");
+    }
+    
+    // Save the resolved working IP back into the device object so subsequent fetch/downloads use it
+    device.ip = workingIp;
+    
+    if (res.status === 401) {
+      if (pinCode) {
+        if (errorEl) {
+          errorEl.textContent = "Incorrect Passkey PIN. Please try again.";
+          errorEl.classList.remove("hidden");
+        }
+        showToast("Incorrect PIN", "error");
+      }
+      
+      const pinPromptTitle = document.getElementById("pin-prompt-title");
+      if (pinPromptTitle) pinPromptTitle.textContent = `ENTER PIN FOR ${device.name.toUpperCase()}`;
+      
+      const pinInput = document.getElementById("remote-pin-input") as HTMLInputElement;
+      if (pinInput) pinInput.value = "";
+      
+      showDiscoverySubView('pin');
+      return;
+    }
+
+    if (!res.ok) {
+      throw new Error(`HTTP error: ${res.status}`);
+    }
+
+    const files = await res.json();
+    activeRemoteFiles = files;
+    
+    // Render remote files
+    renderRemoteFiles(device, files);
+    showDiscoverySubView('files');
+
+  } catch (err: any) {
+    console.error("Connect to remote device failed:", err);
+    showToast(`Failed to connect to ${device.name}: ${err.message || err}`, "error");
+    showDiscoverySubView('devices');
+  }
+}
+
+function renderRemoteFiles(device: any, files: any[]) {
+  const titleEl = document.getElementById("remote-device-title");
+  const ipEl = document.getElementById("remote-device-ip");
+  const listEl = document.getElementById("remote-files-list");
+  const emptyEl = document.getElementById("remote-files-empty");
+  const downloadAllBtn = document.getElementById("btn-remote-download-all") as HTMLButtonElement | null;
+
+  if (titleEl) titleEl.textContent = device.name;
+  if (ipEl) ipEl.textContent = `http://${device.ip}:${device.port}`;
+
+  if (files.length === 0) {
+    emptyEl?.classList.remove("hidden");
+    listEl?.classList.add("hidden");
+    if (downloadAllBtn) downloadAllBtn.classList.add("hidden");
+    return;
+  }
+
+  emptyEl?.classList.add("hidden");
+  listEl?.classList.remove("hidden");
+  if (downloadAllBtn) downloadAllBtn.classList.remove("hidden");
+
+  if (listEl) {
+    listEl.innerHTML = files.map(f => {
+      const ext = f.name.split('.').pop()?.toUpperCase() || "FILE";
+      const sizeMb = f.size >= 1024 * 1024
+        ? `${(f.size / 1024 / 1024).toFixed(1)} MB`
+        : f.size >= 1024
+          ? `${(f.size / 1024).toFixed(0)} KB`
+          : `${f.size} B`;
+
+      let dotColor = "var(--colors-success)";
+      let textVisual = "DOC";
+
+      if (f.size > 100 * 1024 * 1024) dotColor = "var(--colors-sale)";
+      else if (f.size > 10 * 1024 * 1024) dotColor = "var(--colors-info)";
+
+      const extLower = ext.toLowerCase();
+      if (["png", "jpg", "jpeg", "gif", "svg", "webp"].includes(extLower)) {
+        textVisual = "IMG";
+      } else if (["mp3", "wav", "flac", "ogg", "m4a"].includes(extLower)) {
+        textVisual = "AUD";
+      } else if (["mp4", "mkv", "avi", "mov", "webm"].includes(extLower)) {
+        textVisual = "VID";
+      } else if (["zip", "rar", "7z", "tar", "gz"].includes(extLower)) {
+        textVisual = "ZIP";
+      } else if (f.isDirectory) {
+        textVisual = "DIR";
+      }
+
+      return `
+        <li class="flex items-center justify-between p-3.5 hover:bg-soft-cloud transition-colors duration-150 gap-3">
+          <div class="flex items-center gap-2.5 min-w-0">
+            <div class="w-8 h-8 bg-soft-cloud border border-hairline flex items-center justify-center shrink-0 relative rounded-lg">
+              <span class="w-1.5 h-1.5 rounded-full absolute top-1.5 left-1.5 bg-success" style="background-color: ${dotColor}"></span>
+              <span class="text-[9px] font-bold opacity-40">${textVisual}</span>
+            </div>
+            <div class="flex flex-col min-w-0">
+              <span class="text-xs font-bold uppercase tracking-wider text-ink truncate" title="${escapeHtml(f.name)}">${escapeHtml(f.name)}</span>
+              <span class="text-[9px] text-mute uppercase font-semibold">${sizeMb} · .${ext}</span>
+            </div>
+          </div>
+          <button class="btn-download-remote-file h-7 px-3 bg-ink text-canvas font-semibold rounded-full text-[9px] uppercase tracking-wider btn-tap-collapse shrink-0" data-id="${f.id}" data-name="${escapeHtml(f.name)}" data-size="${f.size}">
+            Get
+          </button>
+        </li>
+      `;
+    }).join("");
+
+    // Wire up download buttons
+    document.querySelectorAll(".btn-download-remote-file").forEach(btn => {
+      btn.addEventListener("click", async (e) => {
+        const el = e.currentTarget as HTMLButtonElement;
+        const fileId = el.getAttribute("data-id") || "";
+        const fileName = el.getAttribute("data-name") || "";
+        const fileSize = parseInt(el.getAttribute("data-size") || "0");
+
+        el.textContent = "...";
+        el.disabled = true;
+
+        showToast(`Downloading ${fileName}...`, "info");
+
+        try {
+          await invoke("download_remote_file", {
+            senderIp: device.ip,
+            senderPort: device.port,
+            fileId,
+            fileName,
+            fileSize,
+            pin: activeRemotePin || null
+          });
+          showToast(`Downloaded ${fileName} successfully!`, "success");
+        } catch (err: any) {
+          console.error("Download failed:", err);
+          showToast(`Download failed: ${err.message || err}`, "error");
+        } finally {
+          el.textContent = "Get";
+          el.disabled = false;
+        }
+      });
+    });
+  }
+}
+
+async function downloadAllRemoteFiles() {
+  if (!activeRemoteDevice || activeRemoteFiles.length === 0) return;
+
+  const downloadAllBtn = document.getElementById("btn-remote-download-all") as HTMLButtonElement | null;
+  if (downloadAllBtn) {
+    downloadAllBtn.textContent = "...";
+    downloadAllBtn.disabled = true;
+  }
+
+  showToast(`Downloading all ${activeRemoteFiles.length} files...`, "info");
+
+  let successCount = 0;
+  for (const f of activeRemoteFiles) {
+    try {
+      await invoke("download_remote_file", {
+        senderIp: activeRemoteDevice.ip,
+        senderPort: activeRemoteDevice.port,
+        fileId: f.id,
+        fileName: f.name,
+        fileSize: f.size,
+        pin: activeRemotePin || null
+      });
+      successCount++;
+    } catch (err) {
+      console.error(`Failed to download ${f.name}:`, err);
+    }
+  }
+
+  showToast(`Downloaded ${successCount}/${activeRemoteFiles.length} files successfully!`, "success");
+
+  if (downloadAllBtn) {
+    downloadAllBtn.textContent = "Download All";
+    downloadAllBtn.disabled = false;
   }
 }
 
@@ -589,6 +843,7 @@ async function scanDevices() {
 
   try {
     const devices: any = await invoke("discover_devices");
+    scannedDevicesList = devices;
 
     if (devices.length === 0) {
       if (emptyEl) {
@@ -602,9 +857,9 @@ async function scanDevices() {
 
       if (listEl) {
         const hasFiles = sharedFilesList.length > 0;
-        listEl.innerHTML = devices.map((d: any) => `
+        listEl.innerHTML = devices.map((d: any, index: number) => `
           <li class="flex items-center justify-between p-3.5 hover:bg-soft-cloud transition-colors duration-150 select-none gap-3">
-            <div class="flex items-center gap-2.5 min-w-0">
+            <div class="flex items-center gap-2.5 min-w-0 flex-1 cursor-pointer btn-row-connect" data-index="${index}">
               <div class="w-8 h-8 rounded-full bg-soft-cloud border border-hairline flex items-center justify-center shrink-0">
                 <svg class="w-4 h-4 text-ink" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
@@ -612,27 +867,42 @@ async function scanDevices() {
               </div>
               <div class="flex flex-col min-w-0">
                 <span class="text-xs font-bold uppercase tracking-wider text-ink truncate">${escapeHtml(d.name)}</span>
-                <span class="text-[10px] font-mono text-mute">${escapeHtml(d.ip)}:${d.port}${d.requirePin ? ' 🔒' : ''}</span>
+                <span class="text-[10px] font-mono text-mute">${escapeHtml(d.ips.join(", "))}:${d.port}${d.requirePin ? ' 🔒' : ''}</span>
               </div>
             </div>
             <div class="flex gap-1.5 shrink-0">
               ${hasFiles ? `
-              <button class="btn-send-to h-7 px-2.5 bg-ink text-canvas font-semibold rounded-full text-[9px] uppercase tracking-wider btn-tap-collapse" data-ip="${escapeHtml(d.ip)}" data-port="${d.port}" title="Push my files to this device">
+              <button class="btn-send-to h-7 px-2.5 bg-ink text-canvas font-semibold rounded-full text-[9px] uppercase tracking-wider btn-tap-collapse" data-index="${index}" title="Push my files to this device">
                 Send→
               </button>` : ''}
-              <button class="btn-pull-from h-7 px-2.5 bg-soft-cloud text-ink font-semibold rounded-full text-[9px] uppercase tracking-wider btn-tap-collapse border border-hairline" data-ip="${escapeHtml(d.ip)}" data-port="${d.port}" data-name="${escapeHtml(d.name)}" title="Request this device's files">
-                Pull←
+              <button class="btn-connect-device h-7 px-2.5 bg-soft-cloud text-ink font-semibold rounded-full text-[9px] uppercase tracking-wider btn-tap-collapse border border-hairline" data-index="${index}" title="Connect to this device">
+                Connect
               </button>
             </div>
           </li>
         `).join('');
 
+        // Wire Connect
+        document.querySelectorAll(".btn-connect-device, .btn-row-connect").forEach(el => {
+          el.addEventListener("click", (e) => {
+            e.stopPropagation();
+            const target = e.currentTarget as HTMLElement;
+            const index = parseInt(target.getAttribute("data-index") || "0");
+            const device = scannedDevicesList[index];
+            if (device) {
+              connectToDevice(device);
+            }
+          });
+        });
+
         // Wire Send To
         document.querySelectorAll(".btn-send-to").forEach(btn => {
           btn.addEventListener("click", async (e) => {
+            e.stopPropagation();
             const el = e.currentTarget as HTMLButtonElement;
-            const ip = el.getAttribute("data-ip") || "";
-            const port = parseInt(el.getAttribute("data-port") || "8384");
+            const index = parseInt(el.getAttribute("data-index") || "0");
+            const device = scannedDevicesList[index];
+            if (!device) return;
 
             if (sharedFilesList.length === 0) {
               showToast("Add files to share first!", "error");
@@ -641,10 +911,10 @@ async function scanDevices() {
 
             el.textContent = "...";
             (el as HTMLButtonElement).disabled = true;
-            showToast(`Requesting connection to ${ip}...`, "info");
+            showToast(`Requesting connection to ${device.name}...`, "info");
 
             try {
-              const res: any = await invoke("send_files_to_device", { targetIp: ip, targetPort: port });
+              const res: any = await invoke("send_files_to_device", { targetIps: device.ips, targetPort: device.port });
               if (res.status === "accepted") {
                 showToast("Accepted! Sending files now...", "success");
                 closeDiscovery();
@@ -657,60 +927,6 @@ async function scanDevices() {
               showToast("Connection failed", "error");
             } finally {
               el.textContent = "Send→";
-              (el as HTMLButtonElement).disabled = false;
-            }
-          });
-        });
-
-        // Wire Pull From (request their files)
-        document.querySelectorAll(".btn-pull-from").forEach(btn => {
-          btn.addEventListener("click", async (e) => {
-            const el = e.currentTarget as HTMLButtonElement;
-            const ip = el.getAttribute("data-ip") || "";
-            const port = parseInt(el.getAttribute("data-port") || "8384");
-            const name = el.getAttribute("data-name") || ip;
-
-            el.textContent = "...";
-            (el as HTMLButtonElement).disabled = true;
-
-            // We need to check if the target has files by fetching their file list
-            showToast(`Requesting file list from ${name}...`, "info");
-
-            try {
-              // Fetch their file list via HTTP
-              const response = await fetch(`http://${ip}:${port}/api/files`);
-              if (!response.ok) throw new Error(`HTTP ${response.status}`);
-              const remoteFiles: any[] = await response.json();
-
-              if (remoteFiles.length === 0) {
-                showToast(`${name} has no files to share`, "info");
-              } else {
-                showToast(`${name} has ${remoteFiles.length} file(s). Requesting...`, "info");
-                // Request them to push to us — we tell them to send to our server
-                const myIp = activeIpList[activeIpIndex] || "localhost";
-                const pushResult = await fetch(`http://${ip}:${port}/api/receive-request`, {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    senderName: "Shairee Device",
-                    senderIp: myIp,
-                    senderPort: serverRunning ? serverPort : 0,
-                    files: remoteFiles.map((f: any) => ({ id: f.id, name: f.name, size: f.size }))
-                  })
-                });
-                const pushData = await pushResult.json();
-                if (pushData.status === "accepted") {
-                  showToast("Request accepted!", "success");
-                } else if (pushData.status === "declined") {
-                  showToast("Request declined by remote device", "error");
-                } else {
-                  showToast("No response from remote device", "error");
-                }
-              }
-            } catch (err: any) {
-              showToast(`Could not connect to ${name}`, "error");
-            } finally {
-              el.textContent = "Pull←";
               (el as HTMLButtonElement).disabled = false;
             }
           });
@@ -1003,6 +1219,21 @@ window.addEventListener("DOMContentLoaded", () => {
   document.getElementById("btn-close-discovery")?.addEventListener("click", closeDiscovery);
   document.getElementById("btn-refresh-discovery")?.addEventListener("click", () => scanDevices());
 
+  // Connected remote device actions
+  document.getElementById("btn-remote-pin-back")?.addEventListener("click", () => {
+    showDiscoverySubView('devices');
+  });
+  document.getElementById("btn-remote-files-back")?.addEventListener("click", () => {
+    showDiscoverySubView('devices');
+  });
+  document.getElementById("btn-remote-download-all")?.addEventListener("click", downloadAllRemoteFiles);
+  document.getElementById("btn-remote-pin-submit")?.addEventListener("click", () => {
+    const pinVal = (document.getElementById("remote-pin-input") as HTMLInputElement)?.value;
+    if (activeRemoteDevice) {
+      connectToDevice(activeRemoteDevice, pinVal);
+    }
+  });
+
   // Incoming transfer
   document.getElementById("btn-accept-transfer")?.addEventListener("click", () => respondIncomingTransfer(true));
   document.getElementById("btn-decline-transfer")?.addEventListener("click", () => respondIncomingTransfer(false));
@@ -1072,6 +1303,23 @@ window.addEventListener("DOMContentLoaded", () => {
   updateServerStatus();
   loadFiles();
   refreshTransferLog();
+  checkForUpdates();
+
+  // Prompt username if default or not set
+  setTimeout(async () => {
+    try {
+      const config: any = await invoke("get_config");
+      const isDefault = !config.username || config.username === "Shairee Device";
+      const hasPrompted = localStorage.getItem("shairee-username-prompted");
+      if (isDefault && !hasPrompted) {
+        localStorage.setItem("shairee-username-prompted", "true");
+        showToast("Please set a username so other devices recognize you.", "info");
+        openSettings();
+      }
+    } catch (e) {
+      console.error("Failed to check username on startup:", e);
+    }
+  }, 1500);
 
   // Polling interval while server runs
   setInterval(() => {
@@ -1105,3 +1353,58 @@ listen("incoming-transfer-request", (event: any) => {
   const payload = event.payload;
   openIncomingTransferPrompt(payload.senderName, payload.senderIp, payload.files.length);
 });
+
+async function checkForUpdates() {
+  try {
+    const currentVersion = await getVersion();
+    const response = await fetch("https://api.github.com/repos/thesubh213/Shairee/releases/latest");
+    if (!response.ok) throw new Error("GitHub Releases API unavailable");
+    const latestRelease = await response.json();
+    
+    let latestVersion = latestRelease.tag_name;
+    if (latestVersion.startsWith("v")) {
+      latestVersion = latestVersion.substring(1);
+    }
+
+    if (isNewerVersion(latestVersion, currentVersion)) {
+      const banner = document.getElementById("update-banner");
+      const textEl = document.getElementById("update-banner-text");
+      const linkEl = document.getElementById("update-banner-link") as HTMLAnchorElement | null;
+      
+      if (banner && textEl && linkEl) {
+        textEl.textContent = `New Update Available: Version v${latestVersion} is now available!`;
+        
+        let downloadUrl = latestRelease.html_url;
+        const userAgent = navigator.userAgent.toLowerCase();
+        const isAndroid = userAgent.includes("android");
+        
+        const assets = latestRelease.assets || [];
+        const targetExtension = isAndroid ? ".apk" : ".exe";
+        const matchingAsset = assets.find((a: any) => a.name.toLowerCase().endsWith(targetExtension));
+        
+        if (matchingAsset) {
+          downloadUrl = matchingAsset.browser_download_url;
+        }
+
+        linkEl.href = downloadUrl;
+        banner.classList.remove("hidden");
+        banner.classList.add("flex");
+      }
+    }
+  } catch (err) {
+    console.error("Failed to check for updates:", err);
+  }
+}
+
+function isNewerVersion(latest: string, current: string): boolean {
+  const latestParts = latest.split('.').map(Number);
+  const currentParts = current.split('.').map(Number);
+  
+  for (let i = 0; i < Math.max(latestParts.length, currentParts.length); i++) {
+    const l = latestParts[i] || 0;
+    const c = currentParts[i] || 0;
+    if (l > c) return true;
+    if (l < c) return false;
+  }
+  return false;
+}
