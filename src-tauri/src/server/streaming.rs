@@ -1,36 +1,7 @@
 // src-tauri/src/server/streaming.rs
 // File streaming utilities for maximum performance and low memory usage.
 
-use actix_web::{HttpRequest, HttpResponse};
 use std::path::Path;
-
-/// Stream a file using actix_files::NamedFile for zero-copy performance.
-/// Supports Range headers for resumable downloads.
-pub async fn stream_file(
-    file_path: &Path,
-    file_name: &str,
-    req: &HttpRequest,
-) -> Result<HttpResponse, actix_web::Error> {
-    let named_file = actix_files::NamedFile::open_async(file_path)
-        .await
-        .map_err(|e| {
-            log::error!("Failed to open file {}: {e}", file_path.display());
-            actix_web::error::ErrorNotFound(format!("File not found: {e}"))
-        })?;
-
-    // Set content-disposition for download with the original filename
-    let named_file = named_file
-        .use_last_modified(true)
-        .set_content_disposition(actix_web::http::header::ContentDisposition {
-            disposition: actix_web::http::header::DispositionType::Attachment,
-            parameters: vec![actix_web::http::header::DispositionParam::Filename(
-                file_name.to_string(),
-            )],
-        });
-
-    // NamedFile handles Range, If-Modified-Since, ETag, etc.
-    Ok(named_file.into_response(req))
-}
 
 /// Get a unique path for a temporary ZIP archive and clean up old ones.
 pub fn get_temp_zip_path(prefix: &str) -> std::path::PathBuf {
@@ -86,12 +57,7 @@ pub fn create_zip_from_directory(
 
     let walker = walkdir::WalkDir::new(dir_path)
         .into_iter()
-        .filter_map(|e| {
-            e.ok().or_else(|| {
-                log::debug!("Skipping inaccessible entry during ZIP creation");
-                None
-            })
-        });
+        .filter_map(|e| e.ok());
 
     let mut file_count = 0;
     for entry in walker {
@@ -175,8 +141,6 @@ pub fn create_zip_from_files(
         
         // Check if final name exceeds ZIP filename limits
         if unique_name.len() > MAX_ZIP_FILENAME_LEN {
-            log::warn!("ZIP entry name too long ({} > {} bytes), truncating: {}", 
-                       unique_name.len(), MAX_ZIP_FILENAME_LEN, unique_name);
             unique_name.truncate(MAX_ZIP_FILENAME_LEN);
         }
         
@@ -200,12 +164,7 @@ pub fn create_zip_from_files(
             // Recursively add directory contents
             let walker = walkdir::WalkDir::new(path)
                 .into_iter()
-                .filter_map(|e| {
-                    e.ok().or_else(|| {
-                        log::debug!("Skipping inaccessible entry in ZIP");
-                        None
-                    })
-                });
+                .filter_map(|e| e.ok());
             
             for entry in walker {
                 let epath = entry.path();
@@ -218,7 +177,6 @@ pub fn create_zip_from_files(
                 
                 // Skip extremely long paths
                 if archive_path.len() > MAX_ZIP_FILENAME_LEN {
-                    log::warn!("Skipping ZIP entry with path too long: {}", archive_path);
                     continue;
                 }
                 

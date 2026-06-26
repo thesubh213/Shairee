@@ -43,21 +43,21 @@
       <!-- Center: Search (hidden on mobile, inline on sm+) -->
       <div class="hidden sm:flex flex-1 max-w-xs mx-4">
         <div class="relative w-full">
-          <input type="text" id="search-bar" placeholder="Search files..." class="w-full h-9 bg-soft-cloud text-xs font-medium text-ink px-4 py-2 rounded-full border border-transparent focus-halo" />
+          <input type="text" id="search-bar" placeholder="Search files..." class="w-full h-9 bg-soft-cloud text-xs font-medium text-ink px-4 py-2 rounded-full border border-transparent focus-halo" aria-label="Search shared files" />
         </div>
       </div>
 
       <!-- Right controls cluster -->
       <div class="flex items-center gap-2">
         <!-- Mobile search toggle -->
-        <button id="btn-mobile-search" class="sm:hidden w-9 h-9 rounded-full bg-soft-cloud flex items-center justify-center text-ink border border-transparent btn-tap-collapse" title="Search">
+        <button id="btn-mobile-search" class="sm:hidden w-9 h-9 rounded-full bg-soft-cloud flex items-center justify-center text-ink border border-transparent btn-tap-collapse" title="Search" aria-label="Search files">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
         </button>
 
         <!-- Light/Dark Toggle -->
-        <button id="btn-theme-toggle" class="w-9 h-9 rounded-full bg-soft-cloud flex items-center justify-center text-ink btn-tap-collapse border border-transparent" title="Toggle Mode">
+        <button id="btn-theme-toggle" class="w-9 h-9 rounded-full bg-soft-cloud flex items-center justify-center text-ink btn-tap-collapse border border-transparent" title="Toggle Mode" aria-label="Toggle dark mode">
           <svg class="w-4 h-4 block dark:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path>
           </svg>
@@ -76,7 +76,7 @@
         </div>
 
         <!-- Settings Button -->
-        <button id="btn-settings" class="w-9 h-9 rounded-full bg-soft-cloud flex items-center justify-center text-ink btn-tap-collapse border border-transparent">
+        <button id="btn-settings" class="w-9 h-9 rounded-full bg-soft-cloud flex items-center justify-center text-ink btn-tap-collapse border border-transparent" aria-label="Settings">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
             <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
@@ -87,7 +87,7 @@
 
     <!-- Mobile Search Bar (expandable) -->
     <div id="mobile-search-bar" class="hidden sm:hidden bg-canvas border-b border-hairline px-4 py-2.5">
-      <input type="text" id="search-bar-mobile" placeholder="Search files..." class="w-full h-9 bg-soft-cloud text-xs font-medium text-ink px-4 py-2 rounded-full border border-transparent focus-halo" />
+      <input type="text" id="search-bar-mobile" placeholder="Search files..." class="w-full h-9 bg-soft-cloud text-xs font-medium text-ink px-4 py-2 rounded-full border border-transparent focus-halo" aria-label="Search shared files" />
     </div>
 
     <!-- Editorial Hero Section -->
@@ -108,10 +108,10 @@
         </div>
         
         <div class="flex gap-2 shrink-0">
-          <button id="btn-start-server-large" class="h-10 sm:h-12 px-5 sm:px-8 bg-canvas text-ink font-semibold rounded-full text-[11px] uppercase tracking-wider btn-tap-collapse border border-transparent opacity-50 cursor-not-allowed" disabled title="Add files first to start sharing">
+          <button id="btn-start-server-large" class="h-10 sm:h-12 px-5 sm:px-8 bg-canvas text-ink font-semibold rounded-full text-[11px] uppercase tracking-wider btn-tap-collapse border border-transparent opacity-50 cursor-not-allowed" disabled title="Add files first to start sharing" aria-label="Start or stop sharing portal">
             Start Portal
           </button>
-          <button id="btn-header-receive" class="h-10 sm:h-12 px-5 sm:px-8 bg-soft-cloud/10 text-canvas font-semibold rounded-full text-[11px] uppercase tracking-wider btn-tap-collapse border border-canvas/20">
+          <button id="btn-header-receive" class="h-10 sm:h-12 px-5 sm:px-8 bg-soft-cloud/10 text-canvas font-semibold rounded-full text-[11px] uppercase tracking-wider btn-tap-collapse border border-canvas/20" aria-label="Find devices on network">
             Find Devices
           </button>
         </div>
@@ -158,10 +158,10 @@
           
           <!-- Browse action buttons -->
           <div class="flex gap-2 sm:gap-3 relative z-10 flex-wrap justify-center">
-            <button id="btn-add-files" class="h-9 px-5 sm:px-6 bg-ink text-canvas font-semibold rounded-full text-[11px] uppercase tracking-wider btn-tap-collapse border border-transparent">
+            <button id="btn-add-files" class="h-9 px-5 sm:px-6 bg-ink text-canvas font-semibold rounded-full text-[11px] uppercase tracking-wider btn-tap-collapse border border-transparent" aria-label="Add files to share">
               Add Files
             </button>
-            <button id="btn-add-folder" class="h-9 px-5 sm:px-6 bg-soft-cloud text-ink font-semibold rounded-full text-[11px] uppercase tracking-wider btn-tap-collapse border border-hairline">
+            <button id="btn-add-folder" class="h-9 px-5 sm:px-6 bg-soft-cloud text-ink font-semibold rounded-full text-[11px] uppercase tracking-wider btn-tap-collapse border border-hairline" aria-label="Add folder to share">
               Add Folder
             </button>
           </div>
@@ -196,8 +196,8 @@
             <svg class="w-8 h-8 mb-2 text-hairline" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
               <path stroke-linecap="round" stroke-linejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
             </svg>
-            <span class="text-xs uppercase font-bold tracking-wider text-mute">No files added yet</span>
-            <span class="text-[11px] text-mute font-medium mt-1">Add files above to share them on your local network.</span>
+            <span class="empty-state-title text-xs uppercase font-bold tracking-wider text-mute">No files added yet</span>
+            <span class="empty-state-subtitle text-[11px] text-mute font-medium mt-1">Add files above to share them on your local network.</span>
           </div>
 
           <!-- dynamic files list (grid layout) -->
@@ -213,7 +213,7 @@
           <h2 class="font-display text-xl sm:text-2xl tracking-wide uppercase">PORTAL</h2>
           
           <!-- Server toggle switch -->
-          <button id="btn-toggle-server" class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors bg-hairline focus:outline-none shrink-0 cursor-not-allowed opacity-50" title="Add files first to start portal" disabled>
+          <button id="btn-toggle-server" role="switch" aria-checked="false" aria-label="Toggle sharing portal" class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors bg-hairline focus:outline-none shrink-0 cursor-not-allowed opacity-50" title="Add files first to start portal" disabled>
             <span id="server-toggle-knob" class="inline-block w-4 h-4 transition-transform translate-x-1 bg-canvas rounded-full shadow-md"></span>
           </button>
         </div>
@@ -254,7 +254,7 @@
                     </svg>
                   </button>
                 </div>
-                <button id="btn-copy-url" class="w-9 h-9 bg-soft-cloud border border-hairline rounded-full flex items-center justify-center text-ink btn-tap-collapse shrink-0" title="Copy URL">
+                <button id="btn-copy-url" class="w-9 h-9 bg-soft-cloud border border-hairline rounded-full flex items-center justify-center text-ink btn-tap-collapse shrink-0" title="Copy URL" aria-label="Copy portal URL">
                   <svg class="w-3.5 h-3.5 show-copy" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
                   </svg>
@@ -278,7 +278,7 @@
             </div>
 
             <!-- Stop Portal -->
-            <button id="btn-stop-server" class="h-9 w-full bg-sale/10 text-sale border border-sale/20 font-semibold rounded-full text-[11px] uppercase tracking-wider btn-tap-collapse hover:bg-sale/20 transition-colors">
+            <button id="btn-stop-server" class="h-9 w-full bg-sale/10 text-sale border border-sale/20 font-semibold rounded-full text-[11px] uppercase tracking-wider btn-tap-collapse hover:bg-sale/20 transition-colors" aria-label="Stop sharing portal">
               Stop Portal
             </button>
           </div>
@@ -286,7 +286,7 @@
 
         <!-- Find Devices CTA -->
         <div class="border-t border-hairline pt-4">
-          <button id="btn-find-devices" class="w-full h-10 bg-soft-cloud text-ink font-semibold rounded-full text-[11px] uppercase tracking-wider btn-tap-collapse border border-hairline flex items-center justify-center gap-2">
+          <button id="btn-find-devices" class="w-full h-10 bg-soft-cloud text-ink font-semibold rounded-full text-[11px] uppercase tracking-wider btn-tap-collapse border border-hairline flex items-center justify-center gap-2" aria-label="Find devices on network">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.14 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0" />
             </svg>
@@ -332,7 +332,7 @@
       <div id="settings-modal" class="w-full max-w-sm bg-canvas border border-ink p-5 sm:p-6 transition-all duration-300 scale-95 hidden opacity-0 flex flex-col gap-5 max-h-[calc(100vh-2rem)] overflow-y-auto custom-scrollbar rounded-2xl">
         <div class="flex items-center justify-between border-b border-hairline pb-2 select-none">
           <h2 class="font-display text-2xl tracking-wide uppercase">SETTINGS</h2>
-          <button id="btn-close-settings" class="w-9 h-9 rounded-full bg-soft-cloud flex items-center justify-center text-ink hover:opacity-70 transition-opacity">
+          <button id="btn-close-settings" class="w-9 h-9 rounded-full bg-soft-cloud flex items-center justify-center text-ink hover:opacity-70 transition-opacity" aria-label="Close settings">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"></path>
             </svg>
@@ -358,7 +358,7 @@
               <label class="text-[11px] uppercase font-bold tracking-wider">Require Security PIN</label>
               <span class="text-[10px] text-mute font-medium">Protect connections with a passkey</span>
             </div>
-            <button id="setting-password-toggle" class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors bg-hairline focus:outline-none shrink-0">
+            <button id="setting-password-toggle" role="switch" aria-checked="false" aria-label="Require security PIN" class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors bg-hairline focus:outline-none shrink-0">
               <span class="inline-block w-4 h-4 transition-transform translate-x-1 bg-canvas rounded-full shadow"></span>
             </button>
           </div>
@@ -368,7 +368,44 @@
             <label class="text-[10px] uppercase font-bold text-mute tracking-wider">PIN (4–8 digits)</label>
             <input type="text" id="setting-password" placeholder="Enter numeric PIN" class="w-full h-10 bg-soft-cloud text-xs font-semibold px-4 py-2 border border-transparent focus-halo rounded-lg" />
           </div>
-          
+
+          <!-- Network Settings -->
+          <div class="border-t border-hairline pt-3 flex flex-col gap-4">
+            <div class="text-[10px] uppercase font-bold text-mute tracking-wider">Network</div>
+
+            <!-- Bind Address -->
+            <div class="flex flex-col gap-1.5">
+              <label class="text-[10px] uppercase font-bold text-mute tracking-wider">Bind Address</label>
+              <input type="text" id="setting-bind-address" placeholder="0.0.0.0" class="w-full h-10 bg-soft-cloud text-xs font-semibold px-4 py-2 border border-transparent focus-halo rounded-lg" />
+              <span class="text-[10px] text-mute font-medium">IP address to bind the server to (0.0.0.0 for all interfaces)</span>
+            </div>
+
+            <!-- Auto-detect IP Toggle -->
+            <div class="flex items-center justify-between select-none">
+              <div class="flex flex-col">
+                <label class="text-[11px] uppercase font-bold tracking-wider">Auto-detect LAN IP</label>
+                <span class="text-[10px] text-mute font-medium">Automatically detect your local network IP</span>
+              </div>
+              <button id="setting-auto-detect-ip" role="switch" aria-checked="true" aria-label="Auto-detect LAN IP" class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors bg-ink focus:outline-none shrink-0">
+                <span class="inline-block w-4 h-4 transition-transform translate-x-6 bg-canvas rounded-full shadow"></span>
+              </button>
+            </div>
+
+            <!-- Manual IP Override -->
+            <div class="flex flex-col gap-1.5">
+              <label class="text-[10px] uppercase font-bold text-mute tracking-wider">Manual IP Override</label>
+              <input type="text" id="setting-manual-ip" placeholder="e.g. 192.168.1.100 (optional)" class="w-full h-10 bg-soft-cloud text-xs font-semibold px-4 py-2 border border-transparent focus-halo rounded-lg" />
+              <span class="text-[10px] text-mute font-medium">Leave empty to auto-detect. Used for QR code and sharing URL.</span>
+            </div>
+
+            <!-- Max Concurrent Downloads -->
+            <div class="flex flex-col gap-1.5">
+              <label class="text-[10px] uppercase font-bold text-mute tracking-wider">Max Concurrent Downloads</label>
+              <input type="number" id="setting-max-downloads" placeholder="0" min="0" max="100" class="w-full h-10 bg-soft-cloud text-xs font-semibold px-4 py-2 border border-transparent focus-halo rounded-lg" />
+              <span class="text-[10px] text-mute font-medium">0 = unlimited</span>
+            </div>
+          </div>
+
           <!-- Error message -->
           <div id="settings-error-msg" class="hidden text-[10px] uppercase font-bold text-sale bg-sale/5 border border-sale/15 p-3 animate-fade-in rounded-lg"></div>
         </div>
@@ -400,7 +437,7 @@
       <div id="discovery-modal" class="w-full max-w-md bg-canvas border border-ink p-5 sm:p-6 transition-all duration-300 scale-95 hidden opacity-0 flex flex-col gap-5 max-h-[calc(100vh-2rem)] overflow-y-auto custom-scrollbar rounded-2xl">
         <div class="flex items-center justify-between border-b border-hairline pb-2 select-none">
           <h2 id="discovery-modal-title" class="font-display text-2xl tracking-wide uppercase">DEVICES</h2>
-          <button id="btn-close-discovery" class="w-9 h-9 rounded-full bg-soft-cloud flex items-center justify-center text-ink hover:opacity-70 transition-opacity">
+          <button id="btn-close-discovery" class="w-9 h-9 rounded-full bg-soft-cloud flex items-center justify-center text-ink hover:opacity-70 transition-opacity" aria-label="Close discovery">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"></path>
             </svg>
@@ -460,7 +497,7 @@
             <span class="text-[10px] font-medium text-mute uppercase tracking-wider mt-1 block">This portal requires a passcode to connect</span>
           </div>
 
-          <input type="password" id="remote-pin-input" placeholder="••••" maxlength="8" class="w-full h-11 bg-soft-cloud text-center text-sm font-semibold tracking-widest px-4 border border-transparent focus-halo rounded-lg" />
+          <input type="password" id="remote-pin-input" inputmode="numeric" placeholder="••••" maxlength="8" class="w-full h-11 bg-soft-cloud text-center text-sm font-semibold tracking-widest px-4 border border-transparent focus-halo rounded-lg" />
           <div id="remote-pin-error" class="hidden text-[10px] uppercase font-bold text-sale bg-sale/5 border border-sale/15 p-3 rounded-lg text-center">Incorrect PIN</div>
 
           <div class="flex gap-2">

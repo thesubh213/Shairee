@@ -90,6 +90,16 @@ jobs:
       - name: Initialize Android Platform
         run: npx tauri android init --ci
 
+      - name: Decode Release Keystore
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then
+            echo "::warning::ANDROID_KEYSTORE_BASE64 secret is not set; release APK will be debug-signed."
+          else
+            echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > src-tauri/gen/android/app/release.keystore
+          fi
+
       - name: Inject Android P2P Sharing Capabilities
         run: |
           python3 -c '
@@ -152,6 +162,11 @@ jobs:
           '
 
       - name: Compile Android Release APK
+        env:
+          SHAIREE_KEYSTORE_PATH: ${{ github.workspace }}/src-tauri/gen/android/app/release.keystore
+          SHAIREE_KEYSTORE_PASSWORD: ${{ secrets.SHAIREE_KEYSTORE_PASSWORD }}
+          SHAIREE_KEY_ALIAS: ${{ secrets.SHAIREE_KEY_ALIAS }}
+          SHAIREE_KEY_PASSWORD: ${{ secrets.SHAIREE_KEY_PASSWORD }}
         run: |
           export NDK_HOME=$ANDROID_HOME/ndk/29.0.14206865
           npx tauri android build

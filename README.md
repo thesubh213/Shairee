@@ -102,6 +102,22 @@ Compiling for Android requires the Android SDK, NDK, and Java build tools.
    The generated APK will be output at:
    `src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release-unsigned.apk`
 
+> **⚠️ Keystore Note:** The release APK is signed automatically in CI (see below). For local builds, place your keystore at `src-tauri/gen/android/app/release.keystore` (this path is git-ignored) and set the `SHAIREE_KEYSTORE_PASSWORD`, `SHAIREE_KEY_ALIAS`, and `SHAIREE_KEY_PASSWORD` environment variables before running the build. If no keystore is present, the release build falls back to the debug signing key.
+
+### 🔒 Android Release Signing (CI Secrets)
+Release APKs published from the `Release Build` workflow are signed with a dedicated keystore that is **never** stored in the repository. Configure these repository secrets before tagging a release:
+
+| Secret | Description |
+| --- | --- |
+| `ANDROID_KEYSTORE_BASE64` | Your `.keystore` file, base64-encoded (`base64 release.keystore -w 0`). The workflow decodes it at build time. |
+| `SHAIREE_KEYSTORE_PASSWORD` | Keystore (store) password. |
+| `SHAIREE_KEY_ALIAS` | Alias of the signing key inside the keystore. |
+| `SHAIREE_KEY_PASSWORD` | Password for the signing key itself. |
+
+If any secret is missing, the workflow emits a warning and the APK is signed with the debug key (fine for testing, not for distribution).
+
+**Rotate immediately if a keystore was ever committed.** A keystore (and its passwords) that has appeared in git history must be considered compromised — anyone can use it to sign APKs that Android will treat as authentic Shairee updates. Generate a brand-new keystore with `keytool`, upload it as the `ANDROID_KEYSTORE_BASE64` secret above, and remove the old one from history (e.g. with `git filter-repo`) if feasible.
+
 ### 🛠️ Android Studio Development (Run / Debug)
 When debugging the application on a real device or emulator using Android Studio, you must boot the Tauri development daemon in a background terminal before clicking the **Run** (green play) button:
 1. In your project root terminal, run:

@@ -27,6 +27,7 @@ let sharedFilesList: any[] = [];
 let currentTheme = localStorage.getItem("shairee-theme") || "light";
 let discoveryAutoRefreshTimer: number | null = null;
 let discoveryModalOpen = false;
+let lastFocusedElement: HTMLElement | null = null;
 
 // ─── Theme ────────────────────────────────────────────────────────────
 
@@ -223,6 +224,9 @@ async function updateServerStatus() {
 
       toggleKnob?.parentElement?.classList.replace("bg-hairline", "bg-ink");
       toggleKnob?.classList.replace("translate-x-1", "translate-x-6");
+      // Sync aria-checked for accessibility
+      const toggleParent = toggleKnob?.parentElement as HTMLElement | undefined;
+      if (toggleParent) toggleParent.setAttribute("aria-checked", "true");
 
       const currentIp = activeIpList[activeIpIndex] || "localhost";
       const displayUrl = `http://${currentIp}:${serverPort}`;
@@ -261,6 +265,9 @@ async function updateServerStatus() {
 
       toggleKnob?.parentElement?.classList.replace("bg-ink", "bg-hairline");
       toggleKnob?.classList.replace("translate-x-6", "translate-x-1");
+      // Sync aria-checked for accessibility
+      const toggleParentOff = toggleKnob?.parentElement as HTMLElement | undefined;
+      if (toggleParentOff) toggleParentOff.setAttribute("aria-checked", "false");
     }
 
     updateStartButtonState();
@@ -293,21 +300,27 @@ function renderFiles() {
 
   if (fileCount) fileCount.textContent = `${filtered.length} file${filtered.length !== 1 ? "s" : ""}`;
 
-  if (filtered.length === 0) {
+  // Nothing to show at all
+  if (sharedFilesList.length === 0) {
     emptyState?.classList.remove("hidden");
     fileList?.classList.add("hidden");
     clearBtn?.classList.add("hidden");
+    updateEmptyStateMessage("No files added yet", "Add files above to share them on your local network.");
+    return;
+  }
+
+  clearBtn?.classList.remove("hidden");
+
+  // Search returned no matches
+  if (filtered.length === 0) {
+    emptyState?.classList.remove("hidden");
+    fileList?.classList.add("hidden");
+    updateEmptyStateMessage("No matching files", `Nothing matches "${searchQuery}". Try a different search.`);
     return;
   }
 
   emptyState?.classList.add("hidden");
   fileList?.classList.remove("hidden");
-
-  if (sharedFilesList.length > 0) {
-    clearBtn?.classList.remove("hidden");
-  } else {
-    clearBtn?.classList.add("hidden");
-  }
 
   if (fileList) {
     fileList.innerHTML = filtered.map(f => {
@@ -401,6 +414,16 @@ function renderFiles() {
   }
 }
 
+/** Swap the title + subtitle text of the #file-list-empty empty state. */
+function updateEmptyStateMessage(title: string, subtitle: string) {
+  const emptyState = document.getElementById("file-list-empty");
+  if (!emptyState) return;
+  const titleEl = emptyState.querySelector(".empty-state-title") as HTMLElement | null;
+  const subtitleEl = emptyState.querySelector(".empty-state-subtitle") as HTMLElement | null;
+  if (titleEl) titleEl.textContent = title;
+  if (subtitleEl) subtitleEl.textContent = subtitle;
+}
+
 // ─── Settings Modal ───────────────────────────────────────────────────
 
 async function loadConfig() {
@@ -419,6 +442,27 @@ async function loadConfig() {
     const passwordInput = document.getElementById("setting-password") as HTMLInputElement;
     if (passwordInput) passwordInput.value = configPin;
 
+    const bindAddressInput = document.getElementById("setting-bind-address") as HTMLInputElement;
+    if (bindAddressInput) bindAddressInput.value = config.bindAddress || "0.0.0.0";
+
+    const manualIpInput = document.getElementById("setting-manual-ip") as HTMLInputElement;
+    if (manualIpInput) manualIpInput.value = config.manualIp || "";
+
+    const autoDetectToggle = document.getElementById("setting-auto-detect-ip");
+    const autoDetectKnob = autoDetectToggle?.querySelector("span");
+    if (config.autoDetectIp) {
+      autoDetectToggle?.classList.replace("bg-hairline", "bg-ink");
+      autoDetectKnob?.classList.replace("translate-x-1", "translate-x-6");
+      autoDetectToggle?.setAttribute("aria-checked", "true");
+    } else {
+      autoDetectToggle?.classList.replace("bg-ink", "bg-hairline");
+      autoDetectKnob?.classList.replace("translate-x-6", "translate-x-1");
+      autoDetectToggle?.setAttribute("aria-checked", "false");
+    }
+
+    const maxDownloadsInput = document.getElementById("setting-max-downloads") as HTMLInputElement;
+    if (maxDownloadsInput) maxDownloadsInput.value = config.maxConcurrentDownloads?.toString() || "0";
+
     updatePasswordToggleUI();
   } catch (e) {
     console.error("Failed to load config:", e);
@@ -433,10 +477,12 @@ function updatePasswordToggleUI() {
   if (requirePin) {
     passwordToggle?.classList.replace("bg-hairline", "bg-ink");
     passwordToggleKnob?.classList.replace("translate-x-1", "translate-x-6");
+    passwordToggle?.setAttribute("aria-checked", "true");
     passwordInputContainer?.classList.remove("hidden");
   } else {
     passwordToggle?.classList.replace("bg-ink", "bg-hairline");
     passwordToggleKnob?.classList.replace("translate-x-6", "translate-x-1");
+    passwordToggle?.setAttribute("aria-checked", "false");
     passwordInputContainer?.classList.add("hidden");
   }
 }
@@ -456,6 +502,10 @@ async function saveSettings() {
   const usernameInput = document.getElementById("setting-username") as HTMLInputElement;
   const portInput = document.getElementById("setting-port") as HTMLInputElement;
   const passwordInput = document.getElementById("setting-password") as HTMLInputElement;
+  const bindAddressInput = document.getElementById("setting-bind-address") as HTMLInputElement;
+  const manualIpInput = document.getElementById("setting-manual-ip") as HTMLInputElement;
+  const maxDownloadsInput = document.getElementById("setting-max-downloads") as HTMLInputElement;
+  const autoDetectToggle = document.getElementById("setting-auto-detect-ip");
   const errorMsgEl = document.getElementById("settings-error-msg");
 
   if (errorMsgEl) { errorMsgEl.textContent = ""; errorMsgEl.classList.add("hidden"); }
@@ -463,6 +513,10 @@ async function saveSettings() {
   const nextUsername = usernameInput?.value.trim() || "Shairee Device";
   const nextPort = parseInt(portInput?.value) || 8384;
   const nextPassword = requirePin ? passwordInput?.value.trim() : "";
+  const nextBindAddress = bindAddressInput?.value.trim() || "0.0.0.0";
+  const nextManualIp = manualIpInput?.value.trim() || null;
+  const autoDetectIp = autoDetectToggle?.classList.contains("bg-ink") ?? true;
+  const maxDownloads = parseInt(maxDownloadsInput?.value) || 0;
 
   if (!nextUsername) {
     showError(errorMsgEl, "Username cannot be empty.");
@@ -478,29 +532,23 @@ async function saveSettings() {
   }
 
   try {
-    const status: any = await invoke("get_server_status");
-    const wasRunning = status.serverRunning;
-    const oldPort = status.port;
-
+    // Backend handles port-change restart atomically in update_config
     await invoke("update_config", {
       config: {
         port: nextPort,
         password: nextPassword || null,
         autoStart: false,
         showNotifications: true,
-        username: nextUsername
+        username: nextUsername,
+        bindAddress: nextBindAddress,
+        manualIp: nextManualIp,
+        autoDetectIp,
+        maxConcurrentDownloads: maxDownloads
       }
     });
 
     showToast("Settings saved", "success");
     closeSettings();
-
-    if (wasRunning && nextPort !== oldPort) {
-      showToast("Restarting portal on new port...", "info");
-      await invoke("stop_server");
-      await invoke("start_server");
-    }
-
     updateServerStatus();
   } catch (e: any) {
     showError(errorMsgEl, e?.message || "Failed to save settings.");
@@ -519,6 +567,11 @@ function openModal(modalId: string) {
   const overlay = document.getElementById("modal-overlay");
   const modal = document.getElementById(modalId);
 
+  // Save currently focused element to restore on close
+  if (document.activeElement instanceof HTMLElement) {
+    lastFocusedElement = document.activeElement;
+  }
+
   // Hide all other modals first
   document.querySelectorAll("[id$='-modal']:not([id='modal-overlay'])").forEach(m => {
     if (m.id !== modalId) {
@@ -532,6 +585,14 @@ function openModal(modalId: string) {
 
   modal?.classList.remove("hidden", "opacity-0", "scale-95");
   modal?.classList.add("block", "opacity-100", "scale-100");
+
+  // Move focus into the modal — first focusable element
+  if (modal) {
+    const focusable = modal.querySelector<HTMLElement>(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    );
+    setTimeout(() => focusable?.focus(), 50);
+  }
 }
 
 function closeModal(modalId: string) {
@@ -544,9 +605,12 @@ function closeModal(modalId: string) {
   modal?.classList.remove("opacity-100", "scale-100");
   modal?.classList.add("opacity-0", "scale-95");
 
+  // Restore focus to the element that opened the modal
   setTimeout(() => {
     modal?.classList.add("hidden");
     modal?.classList.remove("block", "flex");
+    lastFocusedElement?.focus();
+    lastFocusedElement = null;
   }, 200);
 }
 
@@ -663,10 +727,14 @@ async function connectToDevice(device: any, pinCode = "") {
       
       const pinPromptTitle = document.getElementById("pin-prompt-title");
       if (pinPromptTitle) pinPromptTitle.textContent = `ENTER PIN FOR ${device.name.toUpperCase()}`;
-      
+
       const pinInput = document.getElementById("remote-pin-input") as HTMLInputElement;
-      if (pinInput) pinInput.value = "";
-      
+      if (pinInput) {
+        pinInput.value = "";
+        // Autofocus after the view transition completes
+        setTimeout(() => pinInput.focus(), 100);
+      }
+
       showDiscoverySubView('pin');
       return;
     }
@@ -1039,12 +1107,16 @@ async function refreshTransferLog() {
 
 // ─── Toggle Server ────────────────────────────────────────────────────
 
+let toggleServerPending = false;
+
 async function toggleServer() {
+  if (toggleServerPending) return;
   if (!serverRunning && sharedFilesList.length === 0) {
     showToast("Add files before starting the portal", "error");
     return;
   }
 
+  toggleServerPending = true;
   try {
     if (serverRunning) {
       await invoke("stop_server");
@@ -1057,6 +1129,8 @@ async function toggleServer() {
   } catch (e) {
     console.error("Toggle server error:", e);
     showToast("Failed to toggle portal", "error");
+  } finally {
+    toggleServerPending = false;
   }
 }
 
@@ -1197,6 +1271,22 @@ window.addEventListener("DOMContentLoaded", () => {
     updatePasswordToggleUI();
   });
 
+  // Auto-detect IP toggle
+  document.getElementById("setting-auto-detect-ip")?.addEventListener("click", (e) => {
+    const toggle = e.currentTarget as HTMLElement;
+    const knob = toggle.querySelector("span");
+    const isOn = toggle.classList.contains("bg-ink");
+    if (isOn) {
+      toggle.classList.replace("bg-ink", "bg-hairline");
+      knob?.classList.replace("translate-x-6", "translate-x-1");
+      toggle.setAttribute("aria-checked", "false");
+    } else {
+      toggle.classList.replace("bg-hairline", "bg-ink");
+      knob?.classList.replace("translate-x-1", "translate-x-6");
+      toggle.setAttribute("aria-checked", "true");
+    }
+  });
+
   // Clear files
   document.getElementById("btn-clear-files")?.addEventListener("click", openClearConfirm);
   document.getElementById("btn-cancel-clear")?.addEventListener("click", fnCloseClearConfirm);
@@ -1215,7 +1305,6 @@ window.addEventListener("DOMContentLoaded", () => {
   // Discovery / receive buttons
   document.getElementById("btn-header-receive")?.addEventListener("click", openDiscovery);
   document.getElementById("btn-find-devices")?.addEventListener("click", openDiscovery);
-  document.getElementById("btn-nav-receive")?.addEventListener("click", openDiscovery);
   document.getElementById("btn-close-discovery")?.addEventListener("click", closeDiscovery);
   document.getElementById("btn-refresh-discovery")?.addEventListener("click", () => scanDevices());
 
@@ -1231,6 +1320,17 @@ window.addEventListener("DOMContentLoaded", () => {
     const pinVal = (document.getElementById("remote-pin-input") as HTMLInputElement)?.value;
     if (activeRemoteDevice) {
       connectToDevice(activeRemoteDevice, pinVal);
+    }
+  });
+
+  // Submit PIN on Enter key
+  document.getElementById("remote-pin-input")?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      const pinVal = (e.target as HTMLInputElement).value;
+      if (activeRemoteDevice) {
+        connectToDevice(activeRemoteDevice, pinVal);
+      }
     }
   });
 

@@ -1,8 +1,10 @@
 // src-tauri/src/security/mod.rs
-// Security utilities: path sanitization, PIN validation, and access control.
+// Security utilities: path sanitization, PIN validation, rate limiting, and access control.
+
+pub mod rate_limit;
 
 use crate::error::{AppError, AppResult};
-use std::path::{Component, Path, PathBuf};
+use std::path::Path;
 
 /// Sanitize a filename to prevent directory traversal attacks.
 /// Returns the sanitized filename (basename only, no path separators).
@@ -51,35 +53,6 @@ pub fn sanitize_filename(name: &str) -> AppResult<String> {
     }
 
     Ok(filename)
-}
-
-/// Validate that a file path is safe to serve.
-/// The path must exist, be absolute, and not contain traversal components.
-pub fn validate_file_path(path: &str) -> AppResult<PathBuf> {
-    let path_buf = PathBuf::from(path);
-
-    // Must be absolute
-    if !path_buf.is_absolute() {
-        return Err(AppError::Security(format!(
-            "Path must be absolute: {path}"
-        )));
-    }
-
-    // Check for traversal components
-    for component in path_buf.components() {
-        if let Component::ParentDir = component {
-            return Err(AppError::PathTraversal(format!(
-                "Parent directory traversal in: {path}"
-            )));
-        }
-    }
-
-    // Canonicalize to resolve symlinks
-    let canonical = path_buf
-        .canonicalize()
-        .map_err(|e| AppError::File(format!("Cannot resolve path {path}: {e}")))?;
-
-    Ok(canonical)
 }
 
 /// Validate a file ID is a proper UUID (prevents injection).
@@ -136,15 +109,6 @@ pub fn validate_pin(submitted: &str, expected: &str) -> bool {
         .zip(expected.bytes())
         .fold(0u8, |acc, (a, b)| acc | (a ^ b))
         == 0
-}
-
-/// Generate a random PIN of the given length.
-pub fn generate_pin(length: usize) -> String {
-    use rand::Rng;
-    let mut rng = rand::thread_rng();
-    (0..length)
-        .map(|_| rng.gen_range(0..10).to_string())
-        .collect()
 }
 
 #[cfg(test)]

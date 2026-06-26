@@ -55,7 +55,5 @@ pub fn generate_qr_data_uri(url: &str) -> Result<String, String> {
     let b64 = base64::engine::general_purpose::STANDARD.encode(&png_bytes);
     let data_uri = format!("data:image/png;base64,{b64}");
 
-    log::info!("Generated QR code for URL: {} ({} bytes PNG, {} bytes base64)", 
-              url, png_bytes.len(), b64.len());
     Ok(data_uri)
 }

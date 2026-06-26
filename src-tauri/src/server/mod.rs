@@ -21,6 +21,7 @@ pub fn start_server(
     app_state: Arc<parking_lot::RwLock<AppState>>,
     app_handle: tauri::AppHandle,
     port: u16,
+    bind_address: &str,
 ) -> Result<actix_web::dev::ServerHandle, AppError> {
     let server_state = web::Data::new(ServerState {
         app_state: app_state.clone(),
@@ -50,7 +51,7 @@ pub fn start_server(
             // UI Route (catch all, serves mobile UI)
             .route("/", web::get().to(mobile_ui::serve_mobile_ui))
     })
-    .bind(("0.0.0.0", port))
+    .bind((bind_address, port))
     .map_err(AppError::Io)?
     .disable_signals() // Tauri handles signals
     .workers(4)

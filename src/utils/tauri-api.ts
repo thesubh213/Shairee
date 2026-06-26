@@ -36,9 +36,14 @@ export interface TransferRecord {
 
 export interface AppConfig {
   port: number;
-  password: string;
+  password: string | null;
   autoStart: boolean;
   showNotifications: boolean;
+  username: string;
+  bindAddress: string;
+  manualIp: string | null;
+  autoDetectIp: boolean;
+  maxConcurrentDownloads: number;
   [key: string]: unknown;
 }
 

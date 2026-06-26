@@ -6,15 +6,8 @@ use local_ip_address::{list_afinet_netifas, local_ip};
 /// Get the primary local IP address (usually the default route interface).
 pub fn get_primary_local_ip() -> Option<String> {
     match local_ip() {
-        Ok(ip) => {
-            let s = ip.to_string();
-            log::info!("Primary local IP: {s}");
-            Some(s)
-        }
-        Err(e) => {
-            log::warn!("Could not detect primary local IP: {e}");
-            None
-        }
+        Ok(ip) => Some(ip.to_string()),
+        Err(_) => None,
     }
 }
 
@@ -70,11 +63,9 @@ pub fn get_all_local_ips() -> Vec<String> {
             });
 
             let sorted_ips: Vec<String> = ips.into_iter().map(|(_, ip)| ip).collect();
-            log::info!("Detected and prioritized local IPv4 addresses: {:?}", sorted_ips);
             sorted_ips
         }
-        Err(e) => {
-            log::warn!("Could not list network interfaces: {e}");
+        Err(_) => {
             // Fallback: try the primary IP
             get_primary_local_ip().into_iter().collect()
         }
@@ -146,7 +137,6 @@ pub fn broadcast_presence(device_name: &str, port: u16, require_pin: bool) {
             }
             std::thread::sleep(std::time::Duration::from_millis(150));
         }
-        log::info!("Broadcasted presence on {} interfaces for port {}", sockets.len(), port);
     });
 }
 
@@ -158,8 +148,9 @@ pub fn start_discovery_listener(
     std::thread::spawn(move || {
         let socket = match std::net::UdpSocket::bind("0.0.0.0:8389") {
             Ok(s) => s,
-            Err(e) => {
-                log::warn!("Could not bind UDP discovery listener on 8389: {e}. Other devices will not find this device automatically.");
+            Err(_) => {
+                // Port 8389 is unavailable; other devices will not find this
+                // device automatically via discovery. Not fatal — continue.
                 return;
             }
         };
@@ -181,8 +172,7 @@ pub fn start_discovery_listener(
                         }
                     }
                 }
-                Err(e) => {
-                    log::error!("UDP discovery listener socket error: {e}");
+                Err(_) => {
                     std::thread::sleep(std::time::Duration::from_millis(1000));
                 }
             }

@@ -65,11 +65,10 @@ pub async fn ws_handler(
     {
         let mut st = state.write();
         st.ws_client_count += 1;
-        log::info!("WebSocket client connected (total: {})", st.ws_client_count);
     }
 
     let state_clone = state.clone();
-    let last_activity = Instant::now();
+    let mut last_activity = Instant::now();
 
     // Spawn a task to handle incoming messages with timeout
     actix_web::rt::spawn(async move {
@@ -83,11 +82,11 @@ pub async fn ws_handler(
             match timeout_future.await {
                 // Timeout occurred - no message received within idle window
                 Err(_) => {
-                    log::debug!("WebSocket idle timeout after {} seconds", WS_IDLE_TIMEOUT.as_secs());
                     break;
                 }
                 // Message received successfully
                 Ok(Some(Ok(msg))) => {
+                    last_activity = Instant::now();
                     match msg {
                         Message::Ping(bytes) => {
                             if session.pong(&bytes).await.is_err() {
@@ -97,8 +96,7 @@ pub async fn ws_handler(
                         Message::Pong(_) => {
                             // Client responded to our ping - keep-alive working
                         }
-                        Message::Text(text) => {
-                            log::debug!("WS received: {}", text);
+                        Message::Text(_) => {
                             // Acknowledge message
                             if session.text(r#"{"type":"ack"}"#).await.is_err() {
                                 break;
@@ -118,10 +116,6 @@ pub async fn ws_handler(
         // Client disconnected
         let mut st = state_clone.write();
         st.ws_client_count = st.ws_client_count.saturating_sub(1);
-        log::info!(
-            "WebSocket client disconnected (remaining: {})",
-            st.ws_client_count
-        );
         let _ = session.close(None).await;
     });
 

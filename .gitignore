@@ -22,11 +22,12 @@ Thumbs.db
 .env
 .env.local
 
-# Keystore and signing files
-# *.keystore
+# Keystore and signing files (NEVER commit these)
+*.keystore
 *.jks
 *.pepk
 *.json.properties
 *.jks.properties
 keystore.properties
 key.properties
+src-tauri/gen/android/app/release.keystore

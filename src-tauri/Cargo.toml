@@ -28,12 +28,9 @@ tokio = { version = "1", features = ["full"] }
 
 # HTTP server
 actix-web = "4"
-actix-files = "0.6"
 actix-cors = "0.7"
-actix-multipart = "0.7"
 actix-ws = "0.3"
 futures-util = "0.3"
-tokio-util = { version = "0.7", features = ["codec"] }
 
 # QR code
 qrcode = "0.14"
@@ -48,16 +45,11 @@ reqwest = { version = "0.12", default-features = false, features = ["stream"] }
 uuid = { version = "1", features = ["v4"] }
 mime_guess = "2"
 percent-encoding = "2"
-log = "0.4"
-env_logger = "0.11"
 parking_lot = "0.12"
-humansize = "2"
-rand = "0.8"
 chrono = { version = "0.4", features = ["serde"] }
 thiserror = "2"
 walkdir = "2"
 zip = { version = "2", default-features = false, features = ["deflate"] }
-open = "5"
 
 [target.'cfg(target_os = "android")'.dependencies]
 jni = "0.21"

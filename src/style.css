@@ -173,4 +173,29 @@
     backdrop-filter: blur(4px);
     -webkit-backdrop-filter: blur(4px);
   }
+
+  /* ─── Always-revealed file card actions on touch devices ────────── */
+  /* The delete button is hover-revealed on desktop (opacity-0 group-hover:opacity-100),
+     but touch devices have no hover, so always show it on small screens. */
+  @media (max-width: 768px) {
+    #file-list .btn-delete-file {
+      opacity: 1;
+    }
+  }
+
+  /* ─── Respect reduced-motion preferences ────────────────────────── */
+  @media (prefers-reduced-motion: reduce) {
+    .animate-fade-in,
+    .animate-pulse-soft,
+    .animate-spin-slow {
+      animation: none;
+    }
+    .btn-tap-collapse:active:not(:disabled) {
+      transform: none;
+    }
+    * {
+      transition-duration: 0.01ms !important;
+      animation-duration: 0.01ms !important;
+    }
+  }
 }

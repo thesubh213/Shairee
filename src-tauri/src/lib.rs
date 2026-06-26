@@ -48,17 +48,24 @@ async fn start_server(
     }
 
     let port = app_state.config.port;
-    
-    // Refresh IPs
-    let ips = network::discovery::get_all_local_ips();
-    app_state.local_ip = ips.first().cloned();
-    
+    let bind_address = app_state.config.bind_address.clone();
+    let manual_ip = app_state.config.manual_ip.clone();
+    let auto_detect_ip = app_state.config.auto_detect_ip;
+
+    // Resolve display IP: manual override or auto-detect
+    if let Some(ref manual) = manual_ip {
+        app_state.local_ip = Some(manual.clone());
+    } else if auto_detect_ip {
+        let ips = network::discovery::get_all_local_ips();
+        app_state.local_ip = ips.first().cloned();
+    }
+
     // Read broadcast data before releasing the lock
     let device_name = app_state.config.server_name.clone();
     let require_pin = app_state.config.require_pin;
 
     // Start Actix server
-    match server::start_server(state.inner().clone(), app.clone(), port) {
+    match server::start_server(state.inner().clone(), app.clone(), port, &bind_address) {
         Ok(handle) => {
             let (tx, rx) = tokio::sync::oneshot::channel();
             
@@ -160,8 +167,7 @@ async fn add_files(
             {
                 match copy_content_uri_to_cache(&app, &path_str) {
                     Ok(p) => p,
-                    Err(e) => {
-                        log::error!("Failed to copy content URI: {e}");
+                    Err(_) => {
                         continue;
                     }
                 }
@@ -262,6 +268,10 @@ pub struct FrontendAppConfig {
     pub auto_start: bool,
     pub show_notifications: bool,
     pub username: String,
+    pub bind_address: String,
+    pub manual_ip: Option<String>,
+    pub auto_detect_ip: bool,
+    pub max_concurrent_downloads: u32,
 }
 
 #[tauri::command]
@@ -276,6 +286,10 @@ async fn get_config(
         auto_start: config.auto_start_server,
         show_notifications: config.notify_on_download,
         username: config.server_name.clone(),
+        bind_address: config.bind_address.clone(),
+        manual_ip: config.manual_ip.clone(),
+        auto_detect_ip: config.auto_detect_ip,
+        max_concurrent_downloads: config.max_concurrent_downloads,
     })
 }
 
@@ -297,6 +311,10 @@ async fn update_config(
         require_pin,
         pin_code,
         server_name: config.username.clone(),
+        bind_address: config.bind_address.clone(),
+        manual_ip: config.manual_ip,
+        auto_detect_ip: config.auto_detect_ip,
+        max_concurrent_downloads: config.max_concurrent_downloads,
         ..app_state.config.clone()
     };
     
@@ -330,7 +348,7 @@ async fn update_config(
     if was_running && port_changed {
         // Start Actix server on new port
         let app_handle = app.clone();
-        match server::start_server(state.inner().clone(), app_handle.clone(), config.port) {
+        match server::start_server(state.inner().clone(), app_handle.clone(), config.port, &config.bind_address) {
             Ok(handle) => {
                 let (tx, rx) = tokio::sync::oneshot::channel();
                 tauri::async_runtime::spawn(async move {

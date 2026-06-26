@@ -12,60 +12,77 @@ use actix_web::web::Bytes;
 use tokio::fs::File;
 use tokio::io::AsyncReadExt;
 
-/// Helper function to validate authorization PIN.
-/// Logs failed auth attempts for security monitoring.
-fn is_auth_valid(req: &HttpRequest, app_state: &AppState) -> bool {
+/// Helper function to validate authorization PIN with rate limiting.
+/// Returns Ok(true) if authenticated, Ok(false) if not authenticated (no PIN needed),
+/// Err(response) if blocked by rate limiter or auth explicitly failed.
+fn is_auth_valid(req: &HttpRequest, app_state: &mut AppState) -> Result<bool, HttpResponse> {
     if !app_state.config.require_pin {
-        return true;
+        return Ok(true);
     }
 
     // Get the expected PIN
     let Some(expected_pin) = &app_state.config.pin_code else {
         // require_pin is true but pin_code is None - treat as no PIN set (open access)
-        return true;
+        return Ok(true);
     };
 
+    // Get peer IP for rate limiting
+    let peer_ip = req.peer_addr()
+        .map(|addr| addr.ip().to_string())
+        .unwrap_or_else(|| "unknown".to_string());
+
+    // Check rate limiter first
+    // Extract submitted PIN from request (without validating yet) to check rate limit
+    let submitted_pin = extract_pin_from_request(req);
+
+    // If no auth provided at all, record failure and reject
+    let pin_value = match submitted_pin {
+        Some(p) => p,
+        None => {
+            // Rate limit even "no auth" attempts
+            let _ = app_state.auth_limiter.check_and_record_failure(&peer_ip);
+            return Err(HttpResponse::Unauthorized().json(json!({"error": "Unauthorized"})));
+        }
+    };
+
+    // Check if IP is blocked
+    if let Err(remaining) = app_state.auth_limiter.check_and_record_failure(&peer_ip) {
+        return Err(HttpResponse::TooManyRequests().json(json!({
+            "error": "Too many failed attempts",
+            "retryAfter": remaining
+        })));
+    }
+
+    // Validate the PIN
+    if crate::security::validate_pin(&pin_value, expected_pin) {
+        // Reset rate limiter on success
+        app_state.auth_limiter.reset(&peer_ip);
+        return Ok(true);
+    }
+
+    Err(HttpResponse::Unauthorized().json(json!({"error": "Invalid PIN"})))
+}
+
+/// Extract PIN from request (Bearer token or query param) without validating.
+fn extract_pin_from_request(req: &HttpRequest) -> Option<String> {
     // Try Bearer token auth
     if let Some(auth_header) = req.headers().get("Authorization") {
         if let Ok(auth_str) = auth_header.to_str() {
             if let Some(token) = auth_str.strip_prefix("Bearer ") {
-                if crate::security::validate_pin(token, expected_pin) {
-                    return true;
-                } else {
-                    log_auth_failure(req, "invalid_bearer_token");
-                    return false;
-                }
+                return Some(token.to_string());
             }
-        } else {
-            log_auth_failure(req, "invalid_auth_header_encoding");
-            return false;
         }
     }
 
-    // Try query parameter auth - extract only the first auth parameter
+    // Try query parameter auth
     if let Some(query_str) = req.query_string().split_once("auth=") {
         let param_value = query_str.1.split('&').next().unwrap_or("");
-        // URL decode the parameter using percent-encoding
         let decoded = percent_encoding::percent_decode_str(param_value)
             .decode_utf8_lossy();
-        if crate::security::validate_pin(&decoded, expected_pin) {
-            return true;
-        } else {
-            log_auth_failure(req, "invalid_query_auth");
-            return false;
-        }
+        return Some(decoded.to_string());
     }
 
-    log_auth_failure(req, "no_auth_provided");
-    false
-}
-
-/// Log authentication failure for security audit trail.
-fn log_auth_failure(req: &HttpRequest, reason: &str) {
-    let ip = req.peer_addr()
-        .map(|addr| addr.ip().to_string())
-        .unwrap_or_else(|| "unknown".to_string());
-    log::warn!("Authentication failure from {}: {}", ip, reason);
+    None
 }
 
 /// Custom Stream wrapper that handles progress logging updates and Drop-based temp file cleanup.
@@ -152,7 +169,6 @@ fn create_progress_stream(
                         match File::open(&path).await {
                             Ok(f) => f,
                             Err(e) => {
-                                log::error!("Failed to open file: {e}");
                                 {
                                     let mut st = app_state.write();
                                     st.record_failed(&transfer_id);
@@ -204,7 +220,6 @@ fn create_progress_stream(
                         Some((Ok(Bytes::from(buf)), (Some(file), bytes_sent, last_emit, path)))
                     }
                     Err(e) => {
-                        log::error!("Error reading streaming chunk: {e}");
                         {
                             let mut st = app_state.write();
                             st.record_failed(&transfer_id);
@@ -234,9 +249,11 @@ pub async fn get_status(state: web::Data<ServerState>) -> impl Responder {
 }
 
 pub async fn list_files(req: HttpRequest, state: web::Data<ServerState>) -> Result<HttpResponse, actix_web::Error> {
-    let app_state = state.app_state.read();
-    if !is_auth_valid(&req, &app_state) {
-        return Ok(HttpResponse::Unauthorized().json(json!({"error": "Unauthorized"})));
+    let mut app_state = state.app_state.write();
+    match is_auth_valid(&req, &mut app_state) {
+        Ok(true) => {}
+        Ok(false) => {}
+        Err(resp) => return Ok(resp),
     }
 
     Ok(HttpResponse::Ok().json(&app_state.get_files_ordered()))
@@ -267,15 +284,16 @@ async fn download_file_impl(
 ) -> Result<HttpResponse, actix_web::Error> {
     // Validate file ID format (must be UUID)
     if let Err(_e) = crate::security::validate_file_id(&file_id) {
-        log::warn!("Invalid file ID format attempted: {}", file_id);
         return Ok(HttpResponse::BadRequest().json(json!({"error": "Invalid file ID"})));
     }
 
-    // Auth check
+    // Auth check (write lock needed for rate limiter)
     {
-        let app_state = state.app_state.read();
-        if !is_auth_valid(&req, &app_state) {
-            return Ok(HttpResponse::Unauthorized().finish());
+        let mut app_state = state.app_state.write();
+        match is_auth_valid(&req, &mut app_state) {
+            Ok(true) => {}
+            Ok(false) => {}
+            Err(resp) => return Ok(resp),
         }
     }
 
@@ -286,8 +304,7 @@ async fn download_file_impl(
 
     if let Some(info) = file_info {
         // Re-validate file exists immediately before serving (minimize TOCTOU window)
-        if let Err(e) = crate::security::validate_file_exists_and_readable(std::path::Path::new(&info.path)) {
-            log::error!("File no longer accessible during download: {}", e);
+        if let Err(_e) = crate::security::validate_file_exists_and_readable(std::path::Path::new(&info.path)) {
             return Ok(HttpResponse::NotFound().json(json!({"error": "File not found"})));
         }
 
@@ -301,8 +318,7 @@ async fn download_file_impl(
                 Ok(_) => {
                     // Re-validate temp file was created successfully
                     let zip_metadata = std::fs::metadata(&temp_zip_path)
-                        .map_err(|e| {
-                            log::error!("Failed to stat temp zip: {}", e);
+                        .map_err(|_| {
                             actix_web::error::ErrorInternalServerError("Zip creation failed")
                         })?;
                     let zip_size = zip_metadata.len();
@@ -342,7 +358,6 @@ async fn download_file_impl(
                         .streaming(wrapped_stream))
                 }
                 Err(e) => {
-                    log::error!("Zip folder error: {e}");
                     Ok(HttpResponse::InternalServerError().body(e))
                 }
             }
@@ -390,11 +405,13 @@ pub async fn download_all(
     req: HttpRequest,
     state: web::Data<ServerState>,
 ) -> Result<HttpResponse, actix_web::Error> {
-    // Auth check
+    // Auth check (write lock needed for rate limiter)
     {
-        let app_state = state.app_state.read();
-        if !is_auth_valid(&req, &app_state) {
-            return Ok(HttpResponse::Unauthorized().finish());
+        let mut app_state = state.app_state.write();
+        match is_auth_valid(&req, &mut app_state) {
+            Ok(true) => {}
+            Ok(false) => {}
+            Err(resp) => return Ok(resp),
         }
     }
 
@@ -420,7 +437,6 @@ pub async fn download_all(
             let zip_metadata = match std::fs::metadata(&temp_zip_path) {
                 Ok(metadata) => metadata,
                 Err(e) => {
-                    log::error!("Temp ZIP created but cannot stat it: {}", e);
                     // Clean up the temp file
                     let _ = std::fs::remove_file(&temp_zip_path);
                     return Ok(HttpResponse::InternalServerError()
@@ -432,7 +448,6 @@ pub async fn download_all(
             
             // Sanity check: ensure ZIP file has content
             if zip_size == 0 {
-                log::error!("Temp ZIP created but is empty");
                 let _ = std::fs::remove_file(&temp_zip_path);
                 return Ok(HttpResponse::InternalServerError()
                     .body("Zip file is empty"));
@@ -472,7 +487,6 @@ pub async fn download_all(
                 .streaming(wrapped_stream))
         }
         Err(e) => {
-            log::error!("Zip all files error: {}", e);
             // Clean up the temp file if it was partially created
             let _ = std::fs::remove_file(&temp_zip_path);
             Ok(HttpResponse::InternalServerError().body(format!("Failed to create archive: {}", e)))
@@ -546,7 +560,33 @@ pub async fn download_file_from_remote(
     
     // Ensure downloads folder exists
     let _ = tokio::fs::create_dir_all(&download_dir).await;
-    let target_path = download_dir.join(&file_name);
+
+    // Sanitize the filename to prevent directory traversal attacks
+    let safe_name = crate::security::sanitize_filename(&file_name)
+        .map_err(|e| mark_failed(&e.to_string()))?;
+
+    // Deduplicate if a file with the same name already exists
+    let target_path = {
+        let mut candidate = download_dir.join(&safe_name);
+        let mut count = 1u32;
+        while candidate.exists() {
+            let stem = std::path::Path::new(&safe_name)
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or(&safe_name);
+            let ext = std::path::Path::new(&safe_name)
+                .extension()
+                .and_then(|e| e.to_str())
+                .map(|e| format!(".{e}"))
+                .unwrap_or_default();
+            candidate = download_dir.join(format!("{stem} ({count}){ext}",));
+            count += 1;
+            if count > 9999 {
+                return Err(mark_failed("Cannot deduplicate filename"));
+            }
+        }
+        candidate
+    };
 
     let client = reqwest::Client::new();
     let url = if let Some(p) = &pin {
@@ -675,7 +715,6 @@ pub async fn receive_request(
                 // Spawn async download task for the accepted files
                 tauri::async_runtime::spawn(async move {
                     for f in files {
-                        log::info!("Starting background pull for: {} ({} bytes)", f.name, f.size);
                         match download_file_from_remote(
                             app_handle.clone(),
                             sender_ip_clone.clone(),
@@ -685,8 +724,8 @@ pub async fn receive_request(
                             f.size,
                             pin.clone(),
                         ).await {
-                            Ok(_) => log::info!("Successfully pulled and saved file {}", f.name),
-                            Err(e) => log::error!("Failed pulling remote file {}: {}", f.name, e),
+                            Ok(_) => {},
+                            Err(_) => {},
                         }
                     }
                 });

@@ -62,17 +62,10 @@ impl AppConfig {
         if path.exists() {
             match std::fs::read_to_string(&path) {
                 Ok(data) => match serde_json::from_str::<AppConfig>(&data) {
-                    Ok(cfg) => {
-                        log::info!("Loaded config from {}", path.display());
-                        return cfg;
-                    }
-                    Err(e) => {
-                        log::warn!("Failed to parse config, using defaults: {e}");
-                    }
+                    Ok(cfg) => return cfg,
+                    Err(_e) => {}
                 },
-                Err(e) => {
-                    log::warn!("Failed to read config file, using defaults: {e}");
-                }
+                Err(_e) => {}
             }
         }
         let cfg = AppConfig::default();
@@ -87,7 +80,6 @@ impl AppConfig {
         let path = config_dir.join("shairee_config.json");
         let data = serde_json::to_string_pretty(self).map_err(|e| e.to_string())?;
         std::fs::write(&path, data).map_err(|e| e.to_string())?;
-        log::info!("Saved config to {}", path.display());
         Ok(())
     }
 

@@ -25,11 +25,24 @@ android {
         versionName = tauriProperties.getProperty("tauri.android.versionName", "1.0")
     }
     signingConfigs {
+        // Release signing credentials are injected via environment variables
+        // (set by CI from repository secrets). For local dev builds where the
+        // secrets are absent, we fall back to the debug signing config so
+        // `tauri android build` still produces an installable APK.
         create("release") {
-            storeFile = file("release.keystore")
-            storePassword = "shairee123"
-            keyAlias = "shairee"
-            keyPassword = "shairee123"
+            val keystorePath = System.getenv("SHAIREE_KEYSTORE_PATH")
+            if (!keystorePath.isNullOrEmpty() && file(keystorePath).exists()) {
+                storeFile = file(keystorePath)
+                storePassword = System.getenv("SHAIREE_KEYSTORE_PASSWORD") ?: ""
+                keyAlias = System.getenv("SHAIREE_KEY_ALIAS") ?: ""
+                keyPassword = System.getenv("SHAIREE_KEY_PASSWORD") ?: ""
+            } else if (file("release.keystore").exists()) {
+                // Legacy local keystore (must NOT be tracked in git)
+                storeFile = file("release.keystore")
+                storePassword = System.getenv("SHAIREE_KEYSTORE_PASSWORD") ?: ""
+                keyAlias = System.getenv("SHAIREE_KEY_ALIAS") ?: "shairee"
+                keyPassword = System.getenv("SHAIREE_KEY_PASSWORD") ?: ""
+            }
         }
     }
     buildTypes {
@@ -46,7 +59,13 @@ android {
         }
         getByName("release") {
             isMinifyEnabled = true
-            signingConfig = signingConfigs.getByName("release")
+            // Fall back to the debug signing key when no release credentials
+            // are available (e.g. local builds without secrets configured).
+            signingConfig = if ((System.getenv("SHAIREE_KEYSTORE_PATH")?.isNotEmpty() == true && file(System.getenv("SHAIREE_KEYSTORE_PATH")).exists()) || file("release.keystore").exists()) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
             proguardFiles(
                 *fileTree(".") { include("**/*.pro") }
                     .plus(getDefaultProguardFile("proguard-android-optimize.txt"))

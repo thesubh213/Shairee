@@ -53,18 +53,6 @@ pub enum TransferStatus {
 
 // ─── Server status ──────────────────────────────────────────────
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ServerStatusInfo {
-    pub running: bool,
-    pub port: u16,
-    pub url: Option<String>,
-    pub local_ip: Option<String>,
-    pub connected_clients: u32,
-    pub total_downloads: u64,
-    pub files_shared: usize,
-}
-
 // ─── Core application state ─────────────────────────────────────
 
 /// The central application state, shared via Arc<RwLock<AppState>>.
@@ -107,6 +95,9 @@ pub struct AppState {
 
     /// Pending incoming transfer prompts (key: sender IP, value: oneshot response channel)
     pub pending_receives: std::collections::HashMap<String, tokio::sync::oneshot::Sender<bool>>,
+
+    /// Per-IP PIN attempt rate limiter
+    pub auth_limiter: crate::security::rate_limit::AuthRateLimiter,
 }
 
 impl AppState {
@@ -127,6 +118,11 @@ impl AppState {
             ws_client_count: 0,
             total_downloads: 0,
             pending_receives: std::collections::HashMap::new(),
+            auth_limiter: crate::security::rate_limit::AuthRateLimiter::new(
+                5,
+                std::time::Duration::from_secs(60),
+                std::time::Duration::from_secs(300),
+            ),
         }
     }
 
@@ -193,42 +189,7 @@ impl AppState {
             .collect()
     }
 
-    /// Build a ServerStatusInfo snapshot.
-    pub fn status_info(&self) -> ServerStatusInfo {
-        ServerStatusInfo {
-            running: self.server_running,
-            port: self.server_port,
-            url: self.server_url.clone(),
-            local_ip: self.local_ip.clone(),
-            connected_clients: self.ws_client_count,
-            total_downloads: self.total_downloads,
-            files_shared: self.shared_files.len(),
-        }
-    }
-
-    /// Record a completed download.
-    pub fn record_download(
-        &mut self,
-        file_id: &str,
-        file_name: &str,
-        file_size: u64,
-        remote_addr: &str,
-    ) {
-        self.total_downloads += 1;
-        let record = TransferRecord {
-            id: uuid::Uuid::new_v4().to_string(),
-            file_id: file_id.to_string(),
-            file_name: file_name.to_string(),
-            file_size,
-            remote_addr: remote_addr.to_string(),
-            started_at: Utc::now(),
-            completed_at: Some(Utc::now()),
-            bytes_sent: file_size,
-            status: TransferStatus::Completed,
-            is_download: false,
-        };
-        self.transfer_log.push(record);
-    }
+    /// Clean up transfer logs older than 24 hours to prevent unbounded memory growth.
 
     /// Record the start of an asynchronous download.
     pub fn record_start(
@@ -320,15 +281,6 @@ impl AppState {
         let cutoff = Utc::now() - chrono::Duration::days(1);
         self.transfer_log.retain(|record| record.started_at > cutoff);
     }
-
-    /// Get transfer logs for display (maximum 100 most recent).
-    pub fn get_recent_transfer_logs(&self) -> Vec<TransferRecord> {
-        self.transfer_log.iter()
-            .rev()
-            .take(100)
-            .cloned()
-            .collect()
-    }
 }
 
 /// Shared state handle — the canonical way to pass state around.
@@ -342,9 +294,7 @@ fn dir_size(path: &std::path::Path) -> u64 {
         .filter_map(|e| {
             match e {
                 Ok(entry) => Some(entry),
-                Err(err) => {
-                    // Log the error but continue processing other files
-                    log::debug!("Error walking directory {}: {}", path.display(), err);
+                Err(_) => {
                     None
                 }
             }
@@ -353,8 +303,7 @@ fn dir_size(path: &std::path::Path) -> u64 {
         .filter_map(|e| {
             match e.metadata() {
                 Ok(m) => Some(m.len()),
-                Err(err) => {
-                    log::debug!("Error reading metadata for {}: {}", e.path().display(), err);
+                Err(_) => {
                     None
                 }
             }

@@ -505,7 +505,7 @@
       <p class="auth-subtitle">Protected portal. Please input the session passcode.</p>
 
       <div class="auth-input-group">
-        <input type="password" id="pin-input" class="auth-input" maxlength="8" placeholder="••••">
+        <input type="password" id="pin-input" inputmode="numeric" class="auth-input" maxlength="8" placeholder="••••" onkeydown="if(event.key==='Enter'){event.preventDefault();submitPin();}">
         <button id="auth-submit-btn" class="auth-btn" onclick="submitPin()">CONNECT</button>
       </div>
       <div id="auth-error-msg" class="auth-error">Incorrect passcode. Please try again.</div>
@@ -567,6 +567,9 @@
           // Show auth box, hide portal files
           portalContent.style.display = 'none';
           authBox.style.display = 'flex';
+          // Autofocus the PIN input for quick entry
+          const pinInput = document.getElementById('pin-input');
+          if (pinInput) pinInput.focus();
           return;
         }
 
