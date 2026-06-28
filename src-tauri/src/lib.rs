@@ -158,6 +158,7 @@ async fn add_files(
     paths: Vec<String>,
     state: tauri::State<'_, Arc<RwLock<AppState>>>,
 ) -> Result<Vec<SharedFileInfo>, AppError> {
+    println!("add_files called with paths: {:?}", paths);
     let mut app_state = state.write();
     let mut added = Vec::new();
 
@@ -165,9 +166,14 @@ async fn add_files(
         let resolved_path = if path_str.starts_with("content://") {
             #[cfg(target_os = "android")]
             {
+                println!("Resolving content URI: {}", path_str);
                 match copy_content_uri_to_cache(&app, &path_str) {
-                    Ok(p) => p,
-                    Err(_) => {
+                    Ok(p) => {
+                        println!("Resolved to: {}", p);
+                        p
+                    },
+                    Err(e) => {
+                        println!("Failed to resolve content URI {}: {:?}", path_str, e);
                         continue;
                     }
                 }
@@ -178,11 +184,20 @@ async fn add_files(
             path_str
         };
 
-        let path = std::path::PathBuf::from(resolved_path);
+        let path = std::path::PathBuf::from(&resolved_path);
+        println!("Checking if path exists: {:?}", path);
         if path.exists() {
-            if let Ok(info) = app_state.add_file(path) {
-                added.push(info);
+            match app_state.add_file(path) {
+                Ok(info) => {
+                    println!("Added file: {:?}", info);
+                    added.push(info);
+                },
+                Err(e) => {
+                    println!("Failed to add file {:?}: {:?}", resolved_path, e);
+                }
             }
+        } else {
+            println!("Path does not exist: {:?}", resolved_path);
         }
     }
     let _ = app.emit("files-changed", ());
@@ -195,13 +210,23 @@ async fn add_folder(
     path: String,
     state: tauri::State<'_, Arc<RwLock<AppState>>>,
 ) -> Result<Vec<SharedFileInfo>, AppError> {
+    println!("add_folder called with path: {:?}", path);
     let mut app_state = state.write();
     let mut added = Vec::new();
-    let path_buf = std::path::PathBuf::from(path);
+    let path_buf = std::path::PathBuf::from(&path);
+    println!("Checking if folder exists: {:?}", path_buf);
     if path_buf.exists() {
-        if let Ok(info) = app_state.add_file(path_buf) {
-            added.push(info);
+        match app_state.add_file(path_buf) {
+            Ok(info) => {
+                println!("Added folder: {:?}", info);
+                added.push(info);
+            },
+            Err(e) => {
+                println!("Failed to add folder {:?}: {:?}", path, e);
+            }
         }
+    } else {
+        println!("Folder path does not exist: {:?}", path);
     }
     let _ = app.emit("files-changed", ());
     Ok(added)

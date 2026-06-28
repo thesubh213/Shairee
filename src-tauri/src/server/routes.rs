@@ -707,8 +707,8 @@ pub async fn receive_request(
         Ok(Ok(accepted)) => {
             if accepted {
                 let app_handle = state.tauri_app.clone();
-                let sender_ip_clone = peer_ip.clone();
-                let sender_port = payload.sender_port;
+                let sender_ip_clone = payload.sender_ip.clone(); // Use the sender's self-reported IP
+                let sender_port = payload.sender_port; // Use the sender's self-reported port
                 let files = payload.files.clone();
                 let pin = payload.pin.clone();
                 

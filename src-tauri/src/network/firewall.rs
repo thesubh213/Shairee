@@ -1,11 +1,15 @@
-// src-tauri/src/network/firewall.rs
-// Windows Firewall management — best-effort rule creation for LAN access.
 
-/// Attempt to add a Windows Firewall inbound rule for the given port.
-/// This is best-effort — if it fails (e.g. no admin rights) we silently
-/// continue. The user can manually allow the port.
 pub fn ensure_firewall_rule(port: u16) {
-    let rule_name = format!("Shairee File Sharing (Port {})", port);
+    // Add rule for TCP (file server)
+    add_single_firewall_rule(port, "TCP");
+    
+    // Add rule for UDP (discovery, port 8389)
+    add_single_firewall_rule(8389, "UDP");
+}
+
+/// Helper to add a single firewall rule for a specific port and protocol
+fn add_single_firewall_rule(port: u16, protocol: &str) {
+    let rule_name = format!("Shairee File Sharing ({protocol} Port {})", port);
 
     // Check if rule already exists
     let check = std::process::Command::new("netsh")
@@ -34,9 +38,9 @@ pub fn ensure_firewall_rule(port: u16) {
             &format!("name={rule_name}"),
             "dir=in",
             "action=allow",
-            "protocol=TCP",
+            &format!("protocol={protocol}"),
             &format!("localport={port}"),
-            "profile=private",
+            "profile=private,domain",
             "enable=yes",
         ])
         .output();

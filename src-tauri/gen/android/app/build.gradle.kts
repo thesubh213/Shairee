@@ -23,6 +23,9 @@ android {
         targetSdk = 36
         versionCode = tauriProperties.getProperty("tauri.android.versionCode", "1").toInt()
         versionName = tauriProperties.getProperty("tauri.android.versionName", "1.0")
+        ndk {
+            abiFilters.add("arm64-v8a")
+        }
     }
     signingConfigs {
         // Release signing credentials are injected via environment variables
@@ -58,9 +61,10 @@ android {
             }
         }
         getByName("release") {
+            manifestPlaceholders["usesCleartextTraffic"] = "true"
             isMinifyEnabled = true
             // Fall back to the debug signing key when no release credentials
-            // are available (e.g. local builds without secrets configured).
+            // are available (e.g., local builds without secrets configured).
             signingConfig = if ((System.getenv("SHAIREE_KEYSTORE_PATH")?.isNotEmpty() == true && file(System.getenv("SHAIREE_KEYSTORE_PATH")).exists()) || file("release.keystore").exists()) {
                 signingConfigs.getByName("release")
             } else {
@@ -73,8 +77,12 @@ android {
             )
         }
     }
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
     kotlinOptions {
-        jvmTarget = "1.8"
+        jvmTarget = "17"
     }
     buildFeatures {
         buildConfig = true

@@ -691,7 +691,7 @@ async function connectToDevice(device: any, pinCode = "") {
     for (const ip of device.ips) {
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 2000);
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
         
         const testRes = await fetch(`http://${ip}:${device.port}/api/files`, {
           headers,
@@ -1144,9 +1144,16 @@ window.addEventListener("DOMContentLoaded", () => {
     e.stopPropagation();
     try {
       const selected = await open({ multiple: true, title: "Select files to share" });
+      console.log("Selected files (raw):", selected);
       if (selected) {
         const paths = Array.isArray(selected) ? selected : [selected];
-        const stringPaths = paths.map((p: any) => typeof p === "string" ? p : p.path);
+        const stringPaths = paths.map((p: any) => {
+          if (typeof p === "string") return p;
+          if (p.path) return p.path;
+          if (p.uri) return p.uri; // Handle Android's content URI
+          return p;
+        });
+        console.log("Selected paths processed:", stringPaths);
         if (stringPaths.length > 0) {
           showFileLoading(true);
           await invoke("add_files", { paths: stringPaths });
@@ -1155,6 +1162,7 @@ window.addEventListener("DOMContentLoaded", () => {
         }
       }
     } catch (err) {
+      console.error("File selection error:", err);
       showToast("File selection failed", "error");
     } finally {
       showFileLoading(false);
@@ -1166,8 +1174,12 @@ window.addEventListener("DOMContentLoaded", () => {
     e.stopPropagation();
     try {
       const selected = await open({ directory: true, title: "Select a folder to share" });
+      console.log("Selected folder (raw):", selected);
       if (selected) {
-        const path = typeof selected === "string" ? selected : (selected as any).path;
+        const path = typeof selected === "string" 
+          ? selected 
+          : ((selected as any).path || (selected as any).uri); // Handle Android's content URI
+        console.log("Selected folder path processed:", path);
         if (path) {
           showFileLoading(true);
           await invoke("add_folder", { path });
@@ -1176,6 +1188,7 @@ window.addEventListener("DOMContentLoaded", () => {
         }
       }
     } catch (err) {
+      console.error("Folder selection error:", err);
       showToast("Folder selection failed", "error");
     } finally {
       showFileLoading(false);
