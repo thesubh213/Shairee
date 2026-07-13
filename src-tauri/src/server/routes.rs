@@ -12,40 +12,40 @@ use actix_web::web::Bytes;
 use tokio::fs::File;
 use tokio::io::AsyncReadExt;
 
-/// Helper function to validate authorization PIN with rate limiting.
-/// Returns Ok(true) if authenticated, Ok(false) if not authenticated (no PIN needed),
-/// Err(response) if blocked by rate limiter or auth explicitly failed.
+
+
+
 fn is_auth_valid(req: &HttpRequest, app_state: &mut AppState) -> Result<bool, HttpResponse> {
     if !app_state.config.require_pin {
         return Ok(true);
     }
 
-    // Get the expected PIN
+    
     let Some(expected_pin) = &app_state.config.pin_code else {
-        // require_pin is true but pin_code is None - treat as no PIN set (open access)
+        
         return Ok(true);
     };
 
-    // Get peer IP for rate limiting
+    
     let peer_ip = req.peer_addr()
         .map(|addr| addr.ip().to_string())
         .unwrap_or_else(|| "unknown".to_string());
 
-    // Check rate limiter first
-    // Extract submitted PIN from request (without validating yet) to check rate limit
+    
+    
     let submitted_pin = extract_pin_from_request(req);
 
-    // If no auth provided at all, record failure and reject
+    
     let pin_value = match submitted_pin {
         Some(p) => p,
         None => {
-            // Rate limit even "no auth" attempts
+            
             let _ = app_state.auth_limiter.check_and_record_failure(&peer_ip);
             return Err(HttpResponse::Unauthorized().json(json!({"error": "Unauthorized"})));
         }
     };
 
-    // Check if IP is blocked
+    
     if let Err(remaining) = app_state.auth_limiter.check_and_record_failure(&peer_ip) {
         return Err(HttpResponse::TooManyRequests().json(json!({
             "error": "Too many failed attempts",
@@ -53,9 +53,9 @@ fn is_auth_valid(req: &HttpRequest, app_state: &mut AppState) -> Result<bool, Ht
         })));
     }
 
-    // Validate the PIN
+    
     if crate::security::validate_pin(&pin_value, expected_pin) {
-        // Reset rate limiter on success
+        
         app_state.auth_limiter.reset(&peer_ip);
         return Ok(true);
     }
@@ -63,9 +63,9 @@ fn is_auth_valid(req: &HttpRequest, app_state: &mut AppState) -> Result<bool, Ht
     Err(HttpResponse::Unauthorized().json(json!({"error": "Invalid PIN"})))
 }
 
-/// Extract PIN from request (Bearer token or query param) without validating.
+
 fn extract_pin_from_request(req: &HttpRequest) -> Option<String> {
-    // Try Bearer token auth
+    
     if let Some(auth_header) = req.headers().get("Authorization") {
         if let Ok(auth_str) = auth_header.to_str() {
             if let Some(token) = auth_str.strip_prefix("Bearer ") {
@@ -74,7 +74,7 @@ fn extract_pin_from_request(req: &HttpRequest) -> Option<String> {
         }
     }
 
-    // Try query parameter auth
+    
     if let Some(query_str) = req.query_string().split_once("auth=") {
         let param_value = query_str.1.split('&').next().unwrap_or("");
         let decoded = percent_encoding::percent_decode_str(param_value)
@@ -85,7 +85,7 @@ fn extract_pin_from_request(req: &HttpRequest) -> Option<String> {
     None
 }
 
-/// Custom Stream wrapper that handles progress logging updates and Drop-based temp file cleanup.
+
 pub struct ProgressStreamWrapper<S> {
     inner: S,
     transfer_id: String,
@@ -115,7 +115,7 @@ where
 impl<S> Drop for ProgressStreamWrapper<S> {
     fn drop(&mut self) {
         if !self.is_completed {
-            // Stream terminated prematurely or aborted!
+            
             {
                 let mut st = self.app_state.write();
                 st.record_failed(&self.transfer_id);
@@ -130,7 +130,7 @@ impl<S> Drop for ProgressStreamWrapper<S> {
     }
 }
 
-/// Create an asynchronous progress stream for the file.
+
 fn create_progress_stream(
     file_path: PathBuf,
     file_id: String,
@@ -282,12 +282,12 @@ async fn download_file_impl(
     file_id: String,
     state: web::Data<ServerState>,
 ) -> Result<HttpResponse, actix_web::Error> {
-    // Validate file ID format (must be UUID)
+    
     if let Err(_e) = crate::security::validate_file_id(&file_id) {
         return Ok(HttpResponse::BadRequest().json(json!({"error": "Invalid file ID"})));
     }
 
-    // Auth check (write lock needed for rate limiter)
+    
     {
         let mut app_state = state.app_state.write();
         match is_auth_valid(&req, &mut app_state) {
@@ -303,7 +303,7 @@ async fn download_file_impl(
     };
 
     if let Some(info) = file_info {
-        // Re-validate file exists immediately before serving (minimize TOCTOU window)
+        
         if let Err(_e) = crate::security::validate_file_exists_and_readable(std::path::Path::new(&info.path)) {
             return Ok(HttpResponse::NotFound().json(json!({"error": "File not found"})));
         }
@@ -311,12 +311,12 @@ async fn download_file_impl(
         let remote_ip = req.peer_addr().map(|a| a.ip().to_string()).unwrap_or_else(|| "unknown".into());
 
         if info.is_directory {
-            // Compress folder to a secure temp path on the fly
+            
             let temp_zip_path = streaming::get_temp_zip_path(&info.name);
             
             match streaming::create_zip_from_directory(Path::new(&info.path), &info.name, &temp_zip_path) {
                 Ok(_) => {
-                    // Re-validate temp file was created successfully
+                    
                     let zip_metadata = std::fs::metadata(&temp_zip_path)
                         .map_err(|_| {
                             actix_web::error::ErrorInternalServerError("Zip creation failed")
@@ -362,7 +362,7 @@ async fn download_file_impl(
                 }
             }
         } else {
-            // Stream standard file with progress tracking
+            
             let transfer_id = {
                 let mut app_state = state.app_state.write();
                 app_state.record_start(&info.id, &info.name, info.size, &remote_ip)
@@ -405,7 +405,7 @@ pub async fn download_all(
     req: HttpRequest,
     state: web::Data<ServerState>,
 ) -> Result<HttpResponse, actix_web::Error> {
-    // Auth check (write lock needed for rate limiter)
+    
     {
         let mut app_state = state.app_state.write();
         match is_auth_valid(&req, &mut app_state) {
@@ -430,14 +430,14 @@ pub async fn download_all(
     let temp_zip_path = streaming::get_temp_zip_path("shairee_all");
     let remote_ip = req.peer_addr().map(|a| a.ip().to_string()).unwrap_or_else(|| "unknown".into());
 
-    // Zip all files directly to disk
+    
     match streaming::create_zip_from_files(&files_to_zip, &temp_zip_path) {
         Ok(_) => {
-            // Verify temp file was created and readable
+            
             let zip_metadata = match std::fs::metadata(&temp_zip_path) {
                 Ok(metadata) => metadata,
                 Err(e) => {
-                    // Clean up the temp file
+                    
                     let _ = std::fs::remove_file(&temp_zip_path);
                     return Ok(HttpResponse::InternalServerError()
                         .body(format!("Zip file created but cannot read metadata: {}", e)));
@@ -446,7 +446,7 @@ pub async fn download_all(
             
             let zip_size = zip_metadata.len();
             
-            // Sanity check: ensure ZIP file has content
+            
             if zip_size == 0 {
                 let _ = std::fs::remove_file(&temp_zip_path);
                 return Ok(HttpResponse::InternalServerError()
@@ -487,14 +487,14 @@ pub async fn download_all(
                 .streaming(wrapped_stream))
         }
         Err(e) => {
-            // Clean up the temp file if it was partially created
+            
             let _ = std::fs::remove_file(&temp_zip_path);
             Ok(HttpResponse::InternalServerError().body(format!("Failed to create archive: {}", e)))
         }
     }
 }
 
-// ─── Incoming File Transfers & Discovery ─────────────────────────────
+
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -514,7 +514,7 @@ pub struct IncomingFileInfo {
     pub size: u64,
 }
 
-/// Helper function to asynchronously pull files from sender and save to Downloads
+
 pub async fn download_file_from_remote(
     app: tauri::AppHandle,
     sender_ip: String,
@@ -526,16 +526,16 @@ pub async fn download_file_from_remote(
 ) -> Result<(), String> {
     use tauri::Manager;
     
-    // Resolve AppState
+    
     let state = app.state::<std::sync::Arc<parking_lot::RwLock<crate::state::AppState>>>();
     
-    // Start pull record in AppState logs
+    
     let transfer_id = {
         let mut st = state.write();
         st.record_start_pull(&file_id, &file_name, file_size, &sender_ip)
     };
 
-    // Helper closure to mark failed in AppState
+    
     let mark_failed = |err_msg: &str| {
         let mut st = state.write();
         st.record_failed(&transfer_id);
@@ -543,29 +543,18 @@ pub async fn download_file_from_remote(
     };
 
     #[cfg(target_os = "android")]
-    let download_dir = {
-        let mut path = std::path::PathBuf::from("/storage/emulated/0/Android/data/com.shairee.portal/files/Download");
-        if let Ok(local_path) = app.path().app_local_data_dir() {
-            if !path.exists() {
-                let _ = std::fs::create_dir_all(&path);
-            }
-            if !path.exists() {
-                path = local_path.join("Download");
-            }
-        }
-        path
-    };
+    let download_dir = app.path().app_cache_dir().map_err(|e| mark_failed(&e.to_string()))?;
     #[cfg(not(target_os = "android"))]
     let download_dir = app.path().download_dir().map_err(|e| mark_failed(&e.to_string()))?;
     
-    // Ensure downloads folder exists
+    
     let _ = tokio::fs::create_dir_all(&download_dir).await;
 
-    // Sanitize the filename to prevent directory traversal attacks
+    
     let safe_name = crate::security::sanitize_filename(&file_name)
         .map_err(|e| mark_failed(&e.to_string()))?;
 
-    // Deduplicate if a file with the same name already exists
+    
     let target_path = {
         let mut candidate = download_dir.join(&safe_name);
         let mut count = 1u32;
@@ -612,7 +601,7 @@ pub async fn download_file_from_remote(
     let mut bytes_downloaded = 0u64;
     let mut last_emit = std::time::Instant::now();
 
-    // Trigger initial progress event in UI
+    
     let _ = app.emit("transfer-progress", serde_json::json!({
         "fileId": file_id,
         "fileName": file_name,
@@ -658,13 +647,23 @@ pub async fn download_file_from_remote(
     use tokio::io::AsyncWriteExt;
     let _ = file.flush().await;
 
-    // Record complete in AppState logs
+    
     {
         let mut st = state.write();
         st.record_complete(&transfer_id);
     }
 
-    // Trigger completion event
+    #[cfg(target_os = "android")]
+    {
+        let cache_path_str = target_path.to_string_lossy().to_string();
+        let mime_type = mime_guess::from_path(&file_name).first().map(|m| m.to_string());
+        let app_handle = app.clone();
+        let file_name_clone = file_name.clone();
+        
+        let _ = move_file_to_public_downloads(&app_handle, &cache_path_str, &file_name_clone, mime_type.as_deref());
+    }
+
+    
     let _ = app.emit("transfer-complete", serde_json::json!({
         "fileId": file_id,
         "fileName": file_name,
@@ -675,7 +674,7 @@ pub async fn download_file_from_remote(
     Ok(())
 }
 
-/// Endpoint called by the sender to request permission to transfer files.
+
 pub async fn receive_request(
     req: HttpRequest,
     payload: web::Json<IncomingFileRequest>,
@@ -683,18 +682,18 @@ pub async fn receive_request(
 ) -> impl Responder {
     let (tx, rx) = tokio::sync::oneshot::channel();
     
-    // Resolve peer IP address (with fallback to self-reported payload IP)
+    
     let peer_ip = req.peer_addr()
         .map(|addr| addr.ip().to_string())
         .unwrap_or_else(|| payload.sender_ip.clone());
 
-    // Save the responder channel in AppState
+    
     {
         let mut app_state = state.app_state.write();
         app_state.pending_receives.insert(peer_ip.clone(), tx);
     }
 
-    // Emit event to frontend UI to trigger the accept/decline dialog
+    
     let _ = state.tauri_app.emit("incoming-transfer-request", serde_json::json!({
         "senderName": payload.sender_name,
         "senderIp": peer_ip,
@@ -702,17 +701,17 @@ pub async fn receive_request(
         "files": payload.files,
     }));
 
-    // Wait for response from UI (timeout in 30 seconds)
+    
     match tokio::time::timeout(std::time::Duration::from_secs(30), rx).await {
         Ok(Ok(accepted)) => {
             if accepted {
                 let app_handle = state.tauri_app.clone();
-                let sender_ip_clone = payload.sender_ip.clone(); // Use the sender's self-reported IP
-                let sender_port = payload.sender_port; // Use the sender's self-reported port
+                let sender_ip_clone = peer_ip.clone(); 
+                let sender_port = payload.sender_port; 
                 let files = payload.files.clone();
                 let pin = payload.pin.clone();
                 
-                // Spawn async download task for the accepted files
+                
                 tauri::async_runtime::spawn(async move {
                     for f in files {
                         match download_file_from_remote(
@@ -736,7 +735,7 @@ pub async fn receive_request(
             }
         }
         _ => {
-            // Remove the channel on timeout or drop
+            
             {
                 let mut app_state = state.app_state.write();
                 app_state.pending_receives.remove(&peer_ip);
@@ -744,4 +743,68 @@ pub async fn receive_request(
             HttpResponse::Ok().json(serde_json::json!({ "status": "timeout" }))
         }
     }
+}
+
+#[cfg(target_os = "android")]
+fn move_file_to_public_downloads(
+    app: &tauri::AppHandle,
+    cache_path: &str,
+    file_name: &str,
+    mime_type: Option<&str>,
+) -> Result<String, String> {
+    use tauri::Manager;
+    let window = app.get_webview_window("main")
+        .ok_or_else(|| "Failed to get main window".to_string())?;
+    
+    let (tx, rx) = std::sync::mpsc::channel();
+    let cache_path_str = cache_path.to_string();
+    let file_name_str = file_name.to_string();
+    let mime_type_str = mime_type.map(|m| m.to_string()).unwrap_or_default();
+    
+    window.with_webview(move |webview| {
+        webview.jni_handle().exec(move |env, context, _webview| {
+            let res = (|| -> Result<String, String> {
+                let path_jstring = env.new_string(&cache_path_str)
+                    .map_err(|e| format!("JNI error creating path string: {:?}", e))?;
+                let name_jstring = env.new_string(&file_name_str)
+                    .map_err(|e| format!("JNI error creating name string: {:?}", e))?;
+                let mime_jstring = env.new_string(&mime_type_str)
+                    .map_err(|e| format!("JNI error creating mime string: {:?}", e))?;
+                
+                let result_jvalue = match env.call_method(
+                    context,
+                    "saveFileToPublicDownloads",
+                    "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;",
+                    &[
+                        jni::objects::JValue::from(&path_jstring),
+                        jni::objects::JValue::from(&name_jstring),
+                        jni::objects::JValue::from(&mime_jstring),
+                    ]
+                ) {
+                    Ok(val) => val,
+                    Err(e) => {
+                        if env.exception_check().unwrap_or(false) {
+                            let _ = env.exception_clear();
+                        }
+                        return Err(format!("JNI call failed: {:?}", e));
+                    }
+                };
+
+                let result_jobject = result_jvalue.l()
+                    .map_err(|e| format!("JNI result was not an object: {:?}", e))?;
+                
+                let result_jstring: &jni::objects::JString = (&result_jobject).into();
+                
+                let result_str: String = env.get_string(result_jstring)
+                    .map_err(|e| format!("JNI string conversion failed: {:?}", e))?
+                    .into();
+                
+                Ok(result_str)
+            })();
+            let _ = tx.send(res);
+        });
+    }).map_err(|e| e.to_string())?;
+    
+    rx.recv()
+        .map_err(|e| format!("JNI thread disconnected: {}", e))?
 }

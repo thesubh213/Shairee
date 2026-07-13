@@ -1,9 +1,9 @@
-// src-tauri/src/error.rs
-// Unified error types for the Shairee application.
+
+
 
 use thiserror::Error;
 
-/// Central error type for the application.
+
 #[derive(Debug, Error)]
 pub enum AppError {
     #[error("IO error: {0}")]
@@ -70,5 +70,5 @@ impl serde::Serialize for AppError {
     }
 }
 
-/// Shorthand result type.
+
 pub type AppResult<T> = Result<T, AppError>;

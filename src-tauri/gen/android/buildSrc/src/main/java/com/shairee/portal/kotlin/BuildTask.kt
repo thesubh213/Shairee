@@ -21,13 +21,13 @@ open class BuildTask : DefaultTask() {
             runTauriCli(executable)
         } catch (e: Exception) {
             if (Os.isFamily(Os.FAMILY_WINDOWS)) {
-                // Try to find the npm executable in common absolute paths or search PATH manually
+                
                 val resolvedExecutable = findNpmOnWindows(executable) ?: executable
                 try {
                     runTauriCli(resolvedExecutable)
                     return
                 } catch (ex: Exception) {
-                    // Fall back to trying standard extensions if absolute resolution didn't help
+                    
                     val fallbacks = listOf(
                         "$executable.cmd",
                         "$executable.exe",
@@ -53,7 +53,7 @@ open class BuildTask : DefaultTask() {
     private fun findNpmOnWindows(baseName: String): String? {
         val paths = mutableListOf<File>()
         
-        // System Program Files
+        
         val programFiles = System.getenv("ProgramFiles") ?: "C:\\Program Files"
         paths.add(File(programFiles, "nodejs\\$baseName.cmd"))
         paths.add(File(programFiles, "nodejs\\$baseName.exe"))
@@ -62,7 +62,7 @@ open class BuildTask : DefaultTask() {
         paths.add(File(programFilesX86, "nodejs\\$baseName.cmd"))
         paths.add(File(programFilesX86, "nodejs\\$baseName.exe"))
 
-        // AppData and User Profile paths
+        
         val userProfile = System.getenv("USERPROFILE")
         if (userProfile != null) {
             paths.add(File(userProfile, "AppData\\Roaming\\npm\\$baseName.cmd"))
@@ -79,7 +79,7 @@ open class BuildTask : DefaultTask() {
             paths.add(File(localAppData, "Programs\\node\\$baseName.cmd"))
         }
 
-        // Search in system PATH manually if it contains directories
+        
         val envPath = System.getenv("PATH")
         if (envPath != null) {
             val cleanPath = envPath.replace("\"", "")

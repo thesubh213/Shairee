@@ -1,12 +1,9 @@
-/**
- * Shairee — Tauri API wrapper
- * Typed invoke() calls and event listeners for Rust backend communication
- */
+
 
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 
-// ─── Types ───────────────────────────────────────────────────────────
+
 
 export interface SharedFileInfo {
   id: string;
@@ -47,7 +44,7 @@ export interface AppConfig {
   [key: string]: unknown;
 }
 
-// ─── Event Payloads ──────────────────────────────────────────────────
+
 
 export interface ServerStartedPayload {
   url: string;
@@ -72,7 +69,7 @@ export interface ClientPayload {
   ip: string;
 }
 
-// ─── Server Commands ─────────────────────────────────────────────────
+
 
 export async function getServerStatus(): Promise<ServerStatus> {
   return invoke<ServerStatus>('get_server_status');
@@ -86,7 +83,7 @@ export async function stopServer(): Promise<void> {
   return invoke<void>('stop_server');
 }
 
-// ─── File Commands ───────────────────────────────────────────────────
+
 
 export async function addFiles(paths: string[]): Promise<SharedFileInfo[]> {
   return invoke<SharedFileInfo[]>('add_files', { paths });
@@ -108,7 +105,7 @@ export async function getSharedFiles(): Promise<SharedFileInfo[]> {
   return invoke<SharedFileInfo[]>('get_shared_files');
 }
 
-// ─── QR & Info ───────────────────────────────────────────────────────
+
 
 export async function getQrCode(): Promise<string> {
   return invoke<string>('get_qr_code');
@@ -122,7 +119,7 @@ export async function getLocalIps(): Promise<string[]> {
   return invoke<string[]>('get_local_ips');
 }
 
-// ─── Config ──────────────────────────────────────────────────────────
+
 
 export async function getConfig(): Promise<AppConfig> {
   return invoke<AppConfig>('get_config');
@@ -132,7 +129,7 @@ export async function updateConfig(config: AppConfig): Promise<void> {
   return invoke<void>('update_config', { config });
 }
 
-// ─── Event Listeners ─────────────────────────────────────────────────
+
 
 export function onServerStarted(callback: (payload: ServerStartedPayload) => void): Promise<UnlistenFn> {
   return listen<ServerStartedPayload>('server-started', (event) => callback(event.payload));

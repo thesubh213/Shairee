@@ -44,14 +44,14 @@
     transition-duration: 200ms;
   }
 
-  /* Prevent layout shift from system scrollbars */
+  
   html {
     overflow-y: scroll;
   }
 }
 
 @layer utilities {
-  /* ─── Scrollbar ─────────────────────────────────────────────────── */
+  
   .custom-scrollbar::-webkit-scrollbar {
     width: 4px;
     height: 4px;
@@ -67,7 +67,7 @@
     background: var(--colors-hairline-soft);
   }
 
-  /* ─── Button tap feedback ───────────────────────────────────────── */
+  
   .btn-tap-collapse {
     transition-property: all;
     transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
@@ -78,7 +78,7 @@
     opacity: 0.75;
   }
 
-  /* ─── Input focus halo ──────────────────────────────────────────── */
+  
   .focus-halo {
     transition-property: all;
     transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
@@ -93,7 +93,7 @@
     outline: none;
   }
 
-  /* ─── Safe area insets (iOS/Android notch support) ──────────────── */
+  
   .safe-top {
     padding-top: env(safe-area-inset-top, 0px);
   }
@@ -101,7 +101,7 @@
     padding-bottom: env(safe-area-inset-bottom, 0px);
   }
 
-  /* ─── Fade in animation ─────────────────────────────────────────── */
+  
   .animate-fade-in {
     animation: fadeIn 0.2s ease-in-out forwards;
   }
@@ -111,7 +111,7 @@
     to   { opacity: 1; transform: translateY(0); }
   }
 
-  /* ─── Slow spin (for loading icons) ────────────────────────────── */
+  
   .animate-spin-slow {
     animation: spin 2s linear infinite;
   }
@@ -121,7 +121,7 @@
     to   { transform: rotate(360deg); }
   }
 
-  /* ─── Soft pulse (in-progress transfers) ────────────────────────── */
+  
   .animate-pulse-soft {
     animation: pulseSoft 1.5s ease-in-out infinite;
   }
@@ -131,7 +131,7 @@
     50%       { opacity: 0.5; }
   }
 
-  /* ─── File card hover lift ───────────────────────────────────────── */
+  
   #file-list li:hover {
     transform: translateY(-1px);
     box-shadow: 0 4px 16px rgba(0,0,0,0.06);
@@ -140,50 +140,49 @@
     box-shadow: 0 4px 16px rgba(255,255,255,0.04);
   }
 
-  /* ─── Discovery modal list item states ─────────────────────────── */
+  
   #discovery-list li:first-child {
     border-top: none;
   }
 
-  /* ─── Drop zone drag active state ───────────────────────────────── */
+  
   #drop-zone.border-info {
     background-color: rgba(17, 81, 255, 0.04);
   }
 
-  /* ─── Mobile touch optimizations ───────────────────────────────── */
+  
   @media (max-width: 640px) {
-    /* Slightly larger touch targets on mobile */
+    
     .btn-tap-collapse {
       min-height: 36px;
     }
 
-    /* Prevent text zoom on input focus on iOS */
+    
     input, textarea, select {
       font-size: 16px !important;
     }
 
-    /* Compact file grid on small screens */
+    
     #file-list {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
   }
 
-  /* ─── Animations for modal overlay ─────────────────────────────── */
+  
   #modal-overlay {
     backdrop-filter: blur(4px);
     -webkit-backdrop-filter: blur(4px);
   }
 
-  /* ─── Always-revealed file card actions on touch devices ────────── */
-  /* The delete button is hover-revealed on desktop (opacity-0 group-hover:opacity-100),
-     but touch devices have no hover, so always show it on small screens. */
+  
+  
   @media (max-width: 768px) {
     #file-list .btn-delete-file {
       opacity: 1;
     }
   }
 
-  /* ─── Respect reduced-motion preferences ────────────────────────── */
+  
   @media (prefers-reduced-motion: reduce) {
     .animate-fade-in,
     .animate-pulse-soft,

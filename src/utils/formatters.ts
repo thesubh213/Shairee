@@ -1,6 +1,4 @@
-/**
- * Shairee — Formatters for file sizes, speeds, durations
- */
+
 
 const SIZE_UNITS = ['B', 'KB', 'MB', 'GB', 'TB'] as const;
 
@@ -88,7 +86,7 @@ export function truncateFilename(name: string, maxLen: number = 32): string {
   if (name.length <= maxLen) return name;
   const ext = name.split('.').pop() ?? '';
   const base = name.slice(0, name.length - ext.length - 1);
-  const keep = maxLen - ext.length - 4; // 4 = "…." + ext dot
+  const keep = maxLen - ext.length - 4; 
   if (keep < 4) return name.slice(0, maxLen - 1) + '…';
   return base.slice(0, keep) + '….' + ext;
 }

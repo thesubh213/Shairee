@@ -22,7 +22,7 @@ use tauri::Emitter;
 use state::{AppState, SharedFileInfo};
 use error::AppError;
 
-// Tauri Commands
+
 
 #[tauri::command]
 async fn get_server_status(state: tauri::State<'_, Arc<RwLock<AppState>>>) -> Result<serde_json::Value, AppError> {
@@ -52,7 +52,7 @@ async fn start_server(
     let manual_ip = app_state.config.manual_ip.clone();
     let auto_detect_ip = app_state.config.auto_detect_ip;
 
-    // Resolve display IP: manual override or auto-detect
+    
     if let Some(ref manual) = manual_ip {
         app_state.local_ip = Some(manual.clone());
     } else if auto_detect_ip {
@@ -60,16 +60,16 @@ async fn start_server(
         app_state.local_ip = ips.first().cloned();
     }
 
-    // Read broadcast data before releasing the lock
+    
     let device_name = app_state.config.server_name.clone();
     let require_pin = app_state.config.require_pin;
 
-    // Start Actix server
+    
     match server::start_server(state.inner().clone(), app.clone(), port, &bind_address) {
         Ok(handle) => {
             let (tx, rx) = tokio::sync::oneshot::channel();
             
-            // Spawn a task inside Tauri's tokio runtime to wait for stop signal
+            
             let handle_clone = handle.clone();
             tauri::async_runtime::spawn(async move {
                 let _ = rx.await;
@@ -80,14 +80,14 @@ async fn start_server(
             app_state.server_running = true;
             app_state.server_port = port;
             
-            // Set access URL
+            
             let ip = app_state.local_ip.clone().unwrap_or_else(|| "127.0.0.1".into());
             let url = format!("http://{}:{}", ip, port);
             app_state.server_url = Some(url.clone());
             
             let _ = app.emit("server-started", serde_json::json!({ "url": url }));
 
-            // Proactively broadcast presence so receivers already scanning can find us
+            
             network::discovery::broadcast_presence(&device_name, port, require_pin);
 
             Ok(url)
@@ -126,12 +126,20 @@ fn copy_content_uri_to_cache(app: &tauri::AppHandle, uri: &str) -> Result<String
                 let uri_jstring = env.new_string(&uri_str)
                     .map_err(|e| format!("JNI error creating string: {:?}", e))?;
                 
-                let result_jvalue = env.call_method(
+                let result_jvalue = match env.call_method(
                     context,
                     "copyContentUriToCache",
                     "(Ljava/lang/String;)Ljava/lang/String;",
                     &[jni::objects::JValue::from(&uri_jstring)]
-                ).map_err(|e| format!("JNI call failed: {:?}", e))?;
+                ) {
+                    Ok(val) => val,
+                    Err(e) => {
+                        if env.exception_check().unwrap_or(false) {
+                            let _ = env.exception_clear();
+                        }
+                        return Err(format!("JNI call failed: {:?}", e));
+                    }
+                };
 
                 let result_jobject = result_jvalue.l()
                     .map_err(|e| format!("JNI result was not an object: {:?}", e))?;
@@ -158,7 +166,7 @@ async fn add_files(
     paths: Vec<String>,
     state: tauri::State<'_, Arc<RwLock<AppState>>>,
 ) -> Result<Vec<SharedFileInfo>, AppError> {
-    println!("add_files called with paths: {:?}", paths);
+    
     let mut app_state = state.write();
     let mut added = Vec::new();
 
@@ -166,14 +174,14 @@ async fn add_files(
         let resolved_path = if path_str.starts_with("content://") {
             #[cfg(target_os = "android")]
             {
-                println!("Resolving content URI: {}", path_str);
+                
                 match copy_content_uri_to_cache(&app, &path_str) {
                     Ok(p) => {
-                        println!("Resolved to: {}", p);
+                        
                         p
                     },
                     Err(e) => {
-                        println!("Failed to resolve content URI {}: {:?}", path_str, e);
+                        
                         continue;
                     }
                 }
@@ -185,19 +193,19 @@ async fn add_files(
         };
 
         let path = std::path::PathBuf::from(&resolved_path);
-        println!("Checking if path exists: {:?}", path);
+        
         if path.exists() {
             match app_state.add_file(path) {
                 Ok(info) => {
-                    println!("Added file: {:?}", info);
+                    
                     added.push(info);
                 },
-                Err(e) => {
-                    println!("Failed to add file {:?}: {:?}", resolved_path, e);
+                Err(_) => {
+                    
                 }
             }
         } else {
-            println!("Path does not exist: {:?}", resolved_path);
+            
         }
     }
     let _ = app.emit("files-changed", ());
@@ -210,23 +218,23 @@ async fn add_folder(
     path: String,
     state: tauri::State<'_, Arc<RwLock<AppState>>>,
 ) -> Result<Vec<SharedFileInfo>, AppError> {
-    println!("add_folder called with path: {:?}", path);
+    
     let mut app_state = state.write();
     let mut added = Vec::new();
     let path_buf = std::path::PathBuf::from(&path);
-    println!("Checking if folder exists: {:?}", path_buf);
+    
     if path_buf.exists() {
         match app_state.add_file(path_buf) {
             Ok(info) => {
-                println!("Added folder: {:?}", info);
+                
                 added.push(info);
             },
-            Err(e) => {
-                println!("Failed to add folder {:?}: {:?}", path, e);
+            Err(_) => {
+                
             }
         }
     } else {
-        println!("Folder path does not exist: {:?}", path);
+        
     }
     let _ = app.emit("files-changed", ());
     Ok(added)
@@ -345,13 +353,13 @@ async fn update_config(
     
     new_config.validate().map_err(AppError::Config)?;
     
-    // Ensure Firewall Rule for the new port on Windows!
+    
     #[cfg(target_os = "windows")]
     {
         let _ = network::firewall::ensure_firewall_rule(config.port);
     }
     
-    // Save to disk (we use . as config_dir which maps to AppState config_dir)
+    
     let config_dir = app_state.config_dir.clone();
     new_config.save(&config_dir).map_err(AppError::Config)?;
     
@@ -359,7 +367,7 @@ async fn update_config(
     let was_running = app_state.server_running;
     
     if was_running && port_changed {
-        // Stop active server first
+        
         if let Some(tx) = app_state.server_stop_tx.take() {
             let _ = tx.send(());
         }
@@ -371,7 +379,7 @@ async fn update_config(
     app_state.config = new_config;
     
     if was_running && port_changed {
-        // Start Actix server on new port
+        
         let app_handle = app.clone();
         match server::start_server(state.inner().clone(), app_handle.clone(), config.port, &config.bind_address) {
             Ok(handle) => {
@@ -413,10 +421,10 @@ async fn discover_devices() -> Result<Vec<serde_json::Value>, AppError> {
                     let _ = socket.set_broadcast(true);
                     let _ = socket.set_nonblocking(true);
                     
-                    // Send to general broadcast
+                    
                     let _ = socket.send_to(b"SHAIREE_DISCOVER", "255.255.255.255:8389");
                     
-                    // Send to class C subnet broadcast
+                    
                     if let std::net::IpAddr::V4(ipv4) = addr.ip() {
                         let octets = ipv4.octets();
                         let subnet_bcast = format!("{}.{}.{}.255:8389", octets[0], octets[1], octets[2]);
@@ -427,7 +435,7 @@ async fn discover_devices() -> Result<Vec<serde_json::Value>, AppError> {
             }
         }
 
-        // Fallback to binding 0.0.0.0 if no specific interfaces bound successfully
+        
         if sockets.is_empty() {
             if let Ok(socket) = std::net::UdpSocket::bind("0.0.0.0:0") {
                 let _ = socket.set_broadcast(true);
@@ -466,7 +474,7 @@ async fn discover_devices() -> Result<Vec<serde_json::Value>, AppError> {
                         }
                     }
                     Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
-                        // No data yet on this interface
+                        
                     }
                     Err(_) => {}
                 }
@@ -623,7 +631,7 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .manage(app_state)
         .setup(move |app| {
-            // Resolve the standard Tauri config directory for robustness!
+            
             let config_dir = app.path().app_config_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
             let loaded_config = config::AppConfig::load(&config_dir);
             
@@ -633,19 +641,19 @@ pub fn run() {
                 state.config = loaded_config;
             }
 
-            // Start the UDP discovery background listener
+            
             network::discovery::start_discovery_listener(app_state_clone.clone(), app.handle().clone());
 
-            // Initialize local IP (but do NOT auto-start the server — user must press Start)
+            
             let ips = network::discovery::get_all_local_ips();
             {
                 let mut state = app_state_clone.write();
                 state.local_ip = ips.first().cloned();
             }
-            // Note: Server auto-start is intentionally disabled. The user must press
-            // "Start Sharing Portal" to begin sharing. This also means no broadcast fires on boot.
+            
+            
 
-            // Check for firewall rule (Windows) using the dynamically configured port!
+            
             #[cfg(target_os = "windows")]
             {
                 let port = app_state_clone.read().config.port;

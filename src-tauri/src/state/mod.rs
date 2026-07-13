@@ -1,5 +1,5 @@
-// src-tauri/src/state/mod.rs
-// Shared application state, accessible from both Tauri and Actix threads.
+
+
 
 use crate::config::AppConfig;
 use chrono::{DateTime, Utc};
@@ -9,9 +9,9 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-// ─── Shared file info ────────────────────────────────────────────
 
-/// Metadata for a file being shared.
+
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SharedFileInfo {
@@ -24,9 +24,9 @@ pub struct SharedFileInfo {
     pub added_at: DateTime<Utc>,
 }
 
-// ─── Transfer tracking ──────────────────────────────────────────
 
-/// A log entry for a completed (or in-progress) transfer.
+
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TransferRecord {
@@ -51,57 +51,57 @@ pub enum TransferStatus {
     Cancelled,
 }
 
-// ─── Server status ──────────────────────────────────────────────
 
-// ─── Core application state ─────────────────────────────────────
 
-/// The central application state, shared via Arc<RwLock<AppState>>.
+
+
+
 pub struct AppState {
-    /// Configuration
+    
     pub config: AppConfig,
 
-    /// Path to config directory for persistence
+    
     pub config_dir: PathBuf,
 
-    /// Shared files indexed by ID
+    
     pub shared_files: HashMap<String, SharedFileInfo>,
 
-    /// Order of file IDs (for stable display ordering)
+    
     pub file_order: Vec<String>,
 
-    /// Transfer log
+    
     pub transfer_log: Vec<TransferRecord>,
 
-    /// Whether the HTTP server is currently running
+    
     pub server_running: bool,
 
-    /// The port the server is actually bound to
+    
     pub server_port: u16,
 
-    /// The server's URL (e.g. http://192.168.1.42:8384)
+    
     pub server_url: Option<String>,
 
-    /// Detected local IP
+    
     pub local_ip: Option<String>,
 
-    /// Handle to the server thread for shutdown signaling
+    
     pub server_stop_tx: Option<tokio::sync::oneshot::Sender<()>>,
 
-    /// Connected WebSocket client count
+    
     pub ws_client_count: u32,
 
-    /// Total downloads since launch
+    
     pub total_downloads: u64,
 
-    /// Pending incoming transfer prompts (key: sender IP, value: oneshot response channel)
+    
     pub pending_receives: std::collections::HashMap<String, tokio::sync::oneshot::Sender<bool>>,
 
-    /// Per-IP PIN attempt rate limiter
+    
     pub auth_limiter: crate::security::rate_limit::AuthRateLimiter,
 }
 
 impl AppState {
-    /// Create a new AppState with the given configuration.
+    
     pub fn new(config: AppConfig, config_dir: PathBuf) -> Self {
         let port = config.port;
         Self {
@@ -126,9 +126,9 @@ impl AppState {
         }
     }
 
-    /// Add a shared file, returning its info.
+    
     pub fn add_file(&mut self, path: PathBuf) -> Result<SharedFileInfo, String> {
-        // Validate path length (Windows MAX_PATH consideration)
+        
         crate::security::validate_path_length(path.to_string_lossy().as_ref())
             .map_err(|e| e.to_string())?;
         
@@ -147,7 +147,7 @@ impl AppState {
             name,
             path: path.to_string_lossy().to_string(),
             size: if metadata.is_dir() {
-                dir_size(&path)  // dir_size already returns u64, returns 0 on error
+                dir_size(&path)  
             } else {
                 metadata.len()
             },
@@ -156,7 +156,7 @@ impl AppState {
             added_at: Utc::now(),
         };
 
-        // Bound check: prevent adding unbounded number of files
+        
         if self.shared_files.len() >= 10000 {
             return Err("Maximum number of shared files reached (10000)".into());
         }
@@ -166,7 +166,7 @@ impl AppState {
         Ok(info)
     }
 
-    /// Remove a shared file by ID.
+    
     pub fn remove_file(&mut self, id: &str) -> Result<(), String> {
         if self.shared_files.remove(id).is_none() {
             return Err(format!("File not found: {id}"));
@@ -175,13 +175,13 @@ impl AppState {
         Ok(())
     }
 
-    /// Clear all shared files.
+    
     pub fn clear_files(&mut self) {
         self.shared_files.clear();
         self.file_order.clear();
     }
 
-    /// Get ordered list of shared files.
+    
     pub fn get_files_ordered(&self) -> Vec<SharedFileInfo> {
         self.file_order
             .iter()
@@ -189,9 +189,9 @@ impl AppState {
             .collect()
     }
 
-    /// Clean up transfer logs older than 24 hours to prevent unbounded memory growth.
+    
 
-    /// Record the start of an asynchronous download.
+    
     pub fn record_start(
         &mut self,
         file_id: &str,
@@ -199,7 +199,7 @@ impl AppState {
         file_size: u64,
         remote_addr: &str,
     ) -> String {
-        // Clean up old transfer logs every 100 records to prevent unbounded growth
+        
         if self.transfer_log.len() % 100 == 0 {
             self.cleanup_old_transfer_logs();
         }
@@ -221,7 +221,7 @@ impl AppState {
         id
     }
 
-    /// Record the start of an incoming direct file pull.
+    
     pub fn record_start_pull(
         &mut self,
         file_id: &str,
@@ -250,15 +250,15 @@ impl AppState {
         id
     }
 
-    /// Update progress of an active download (use linear search with index caching).
+    
     pub fn update_progress(&mut self, record_id: &str, bytes_sent: u64) {
-        // Find by linear search - acceptable for small collections
+        
         if let Some(pos) = self.transfer_log.iter().position(|r| r.id == record_id) {
             self.transfer_log[pos].bytes_sent = bytes_sent;
         }
     }
 
-    /// Record successful completion of an active download.
+    
     pub fn record_complete(&mut self, record_id: &str) {
         self.total_downloads += 1;
         if let Some(pos) = self.transfer_log.iter().position(|r| r.id == record_id) {
@@ -268,7 +268,7 @@ impl AppState {
         }
     }
 
-    /// Record failure of an active download.
+    
     pub fn record_failed(&mut self, record_id: &str) {
         if let Some(pos) = self.transfer_log.iter().position(|r| r.id == record_id) {
             self.transfer_log[pos].completed_at = Some(Utc::now());
@@ -276,18 +276,18 @@ impl AppState {
         }
     }
 
-    /// Clean up transfer logs older than 24 hours to prevent unbounded memory growth.
+    
     pub fn cleanup_old_transfer_logs(&mut self) {
         let cutoff = Utc::now() - chrono::Duration::days(1);
         self.transfer_log.retain(|record| record.started_at > cutoff);
     }
 }
 
-/// Shared state handle — the canonical way to pass state around.
+
 pub type SharedAppState = Arc<RwLock<AppState>>;
 
-/// Recursively compute directory size, handling errors gracefully.
-/// Returns 0 if the directory cannot be accessed (instead of panicking).
+
+
 fn dir_size(path: &std::path::Path) -> u64 {
     walkdir::WalkDir::new(path)
         .into_iter()

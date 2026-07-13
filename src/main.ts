@@ -14,7 +14,7 @@ function escapeHtml(str: string): string {
     .replace(/'/g, "&#039;");
 }
 
-// ─── State ────────────────────────────────────────────────────────────
+
 
 let serverPort = 8384;
 let requirePin = false;
@@ -29,7 +29,7 @@ let discoveryAutoRefreshTimer: number | null = null;
 let discoveryModalOpen = false;
 let lastFocusedElement: HTMLElement | null = null;
 
-// ─── Theme ────────────────────────────────────────────────────────────
+
 
 function initTheme() {
   const toggleBtn = document.getElementById("btn-theme-toggle");
@@ -52,7 +52,7 @@ function applyTheme(theme: string) {
   }
 }
 
-// ─── Toast ────────────────────────────────────────────────────────────
+
 
 function showToast(message: string, type: "success" | "error" | "info" = "info") {
   const container = document.getElementById("toast-container");
@@ -86,7 +86,7 @@ function showToast(message: string, type: "success" | "error" | "info" = "info")
   }, 3500);
 }
 
-// ─── Loading Overlay ─────────────────────────────────────────────────
+
 
 function showFileLoading(isLoading: boolean) {
   const loader = document.getElementById("file-list-loading");
@@ -100,7 +100,7 @@ function showFileLoading(isLoading: boolean) {
   }
 }
 
-// ─── Portal Start/Stop Button Enablement ─────────────────────────────
+
 
 function updateStartButtonState() {
   const hasFiles = sharedFilesList.length > 0;
@@ -110,7 +110,7 @@ function updateStartButtonState() {
   const offlineHint = document.getElementById("offline-hint");
 
   if (serverRunning) {
-    // Server is running — allow stopping via toggle, disable "Start" buttons (replaced by Stop button)
+    
     if (startBtnHero) {
       startBtnHero.disabled = false;
       startBtnHero.classList.remove("opacity-50", "cursor-not-allowed");
@@ -120,7 +120,7 @@ function updateStartButtonState() {
       toggleBtn.disabled = false;
       toggleBtn.classList.remove("opacity-50", "cursor-not-allowed");
     }
-    // Show no-files hint if server running but no files
+    
     const hint = document.getElementById("no-files-hint");
     if (hint) {
       if (!hasFiles) {
@@ -132,7 +132,7 @@ function updateStartButtonState() {
       }
     }
   } else {
-    // Server is stopped
+    
     if (startBtnHero) {
       startBtnHero.textContent = "Start Portal";
       if (hasFiles) {
@@ -172,7 +172,7 @@ function updateStartButtonState() {
         ? "Click above to start sharing on your network"
         : "Add files above to enable the portal";
     }
-    // Hide no-files hint when server is stopped
+    
     const hint = document.getElementById("no-files-hint");
     if (hint) {
       hint.classList.add("hidden");
@@ -181,7 +181,7 @@ function updateStartButtonState() {
   }
 }
 
-// ─── Server Status ────────────────────────────────────────────────────
+
 
 async function updateServerStatus() {
   try {
@@ -203,7 +203,7 @@ async function updateServerStatus() {
     const toggleKnob = document.getElementById("server-toggle-knob");
     const cycleBtn = document.getElementById("btn-cycle-ip");
 
-    // Cycle IP visibility
+    
     if (serverRunning && activeIpList.length > 1) {
       cycleBtn?.classList.remove("hidden");
     } else {
@@ -211,7 +211,7 @@ async function updateServerStatus() {
     }
 
     if (serverRunning) {
-      // Header status
+      
       indicator?.classList.replace("bg-soft-cloud", "bg-success/5");
       indicator?.classList.replace("border-hairline-soft", "border-success");
       if (text) { text.textContent = "Running"; text.classList.add("text-success"); }
@@ -224,7 +224,7 @@ async function updateServerStatus() {
 
       toggleKnob?.parentElement?.classList.replace("bg-hairline", "bg-ink");
       toggleKnob?.classList.replace("translate-x-1", "translate-x-6");
-      // Sync aria-checked for accessibility
+      
       const toggleParent = toggleKnob?.parentElement as HTMLElement | undefined;
       if (toggleParent) toggleParent.setAttribute("aria-checked", "true");
 
@@ -244,13 +244,13 @@ async function updateServerStatus() {
       const pinEl = document.getElementById("active-pin-info");
       if (pinEl) pinEl.textContent = requirePin ? (configPin ? "Active" : "Set") : "None";
 
-      // Fetch QR code
+      
       try {
         const qrBase64 = await invoke("get_qr_code", { url: displayUrl });
         const qrImg = document.getElementById("qr-code-img") as HTMLImageElement;
         if (qrImg) qrImg.src = qrBase64 as string;
       } catch (e) {
-        console.error("QR code error:", e);
+        
       }
     } else {
       indicator?.classList.replace("bg-success/5", "bg-soft-cloud");
@@ -265,18 +265,18 @@ async function updateServerStatus() {
 
       toggleKnob?.parentElement?.classList.replace("bg-ink", "bg-hairline");
       toggleKnob?.classList.replace("translate-x-6", "translate-x-1");
-      // Sync aria-checked for accessibility
+      
       const toggleParentOff = toggleKnob?.parentElement as HTMLElement | undefined;
       if (toggleParentOff) toggleParentOff.setAttribute("aria-checked", "false");
     }
 
     updateStartButtonState();
   } catch (error) {
-    console.error("Failed to fetch server status:", error);
+    
   }
 }
 
-// ─── File Management ──────────────────────────────────────────────────
+
 
 async function loadFiles() {
   try {
@@ -284,7 +284,7 @@ async function loadFiles() {
     renderFiles();
     updateStartButtonState();
   } catch (error) {
-    console.error("Failed to load files:", error);
+    
   }
 }
 
@@ -300,7 +300,7 @@ function renderFiles() {
 
   if (fileCount) fileCount.textContent = `${filtered.length} file${filtered.length !== 1 ? "s" : ""}`;
 
-  // Nothing to show at all
+  
   if (sharedFilesList.length === 0) {
     emptyState?.classList.remove("hidden");
     fileList?.classList.add("hidden");
@@ -311,7 +311,7 @@ function renderFiles() {
 
   clearBtn?.classList.remove("hidden");
 
-  // Search returned no matches
+  
   if (filtered.length === 0) {
     emptyState?.classList.remove("hidden");
     fileList?.classList.add("hidden");
@@ -414,7 +414,7 @@ function renderFiles() {
   }
 }
 
-/** Swap the title + subtitle text of the #file-list-empty empty state. */
+
 function updateEmptyStateMessage(title: string, subtitle: string) {
   const emptyState = document.getElementById("file-list-empty");
   if (!emptyState) return;
@@ -424,7 +424,7 @@ function updateEmptyStateMessage(title: string, subtitle: string) {
   if (subtitleEl) subtitleEl.textContent = subtitle;
 }
 
-// ─── Settings Modal ───────────────────────────────────────────────────
+
 
 async function loadConfig() {
   try {
@@ -465,7 +465,7 @@ async function loadConfig() {
 
     updatePasswordToggleUI();
   } catch (e) {
-    console.error("Failed to load config:", e);
+    
   }
 }
 
@@ -532,7 +532,7 @@ async function saveSettings() {
   }
 
   try {
-    // Backend handles port-change restart atomically in update_config
+    
     await invoke("update_config", {
       config: {
         port: nextPort,
@@ -561,18 +561,18 @@ function showError(el: HTMLElement | null, msg: string) {
   showToast(msg, "error");
 }
 
-// ─── Modal Helpers ────────────────────────────────────────────────────
+
 
 function openModal(modalId: string) {
   const overlay = document.getElementById("modal-overlay");
   const modal = document.getElementById(modalId);
 
-  // Save currently focused element to restore on close
+  
   if (document.activeElement instanceof HTMLElement) {
     lastFocusedElement = document.activeElement;
   }
 
-  // Hide all other modals first
+  
   document.querySelectorAll("[id$='-modal']:not([id='modal-overlay'])").forEach(m => {
     if (m.id !== modalId) {
       m.classList.add("hidden", "opacity-0", "scale-95");
@@ -586,7 +586,7 @@ function openModal(modalId: string) {
   modal?.classList.remove("hidden", "opacity-0", "scale-95");
   modal?.classList.add("block", "opacity-100", "scale-100");
 
-  // Move focus into the modal — first focusable element
+  
   if (modal) {
     const focusable = modal.querySelector<HTMLElement>(
       'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
@@ -605,7 +605,7 @@ function closeModal(modalId: string) {
   modal?.classList.remove("opacity-100", "scale-100");
   modal?.classList.add("opacity-0", "scale-95");
 
-  // Restore focus to the element that opened the modal
+  
   setTimeout(() => {
     modal?.classList.add("hidden");
     modal?.classList.remove("block", "flex");
@@ -614,7 +614,7 @@ function closeModal(modalId: string) {
   }, 200);
 }
 
-// ─── Clear Confirmation ───────────────────────────────────────────────
+
 
 function openClearConfirm() {
   openModal("confirm-modal");
@@ -624,7 +624,7 @@ function fnCloseClearConfirm() {
   closeModal("confirm-modal");
 }
 
-// ─── Discovery Modal (Unified Send & Receive) ─────────────────────────
+
 
 let scanning = false;
 let incomingSenderIp = "";
@@ -638,7 +638,7 @@ function openDiscovery() {
   openModal("discovery-modal");
   showDiscoverySubView('devices');
   scanDevices();
-  // Start auto-refresh every 3 seconds
+  
   if (discoveryAutoRefreshTimer) clearInterval(discoveryAutoRefreshTimer);
   discoveryAutoRefreshTimer = window.setInterval(() => {
     if (discoveryModalOpen) scanDevices();
@@ -684,7 +684,7 @@ async function connectToDevice(device: any, pinCode = "") {
       headers["Authorization"] = "Bearer " + pinCode;
     }
     
-    // Fetch remote files list from the first reachable IP
+    
     let res: Response | null = null;
     let workingIp = "";
     
@@ -705,7 +705,7 @@ async function connectToDevice(device: any, pinCode = "") {
           break;
         }
       } catch (e) {
-        console.warn(`IP ${ip} not reachable for device ${device.name}:`, e);
+        
       }
     }
 
@@ -713,7 +713,7 @@ async function connectToDevice(device: any, pinCode = "") {
       throw new Error("Could not reach the device on any of its IP addresses.");
     }
     
-    // Save the resolved working IP back into the device object so subsequent fetch/downloads use it
+    
     device.ip = workingIp;
     
     if (res.status === 401) {
@@ -731,7 +731,7 @@ async function connectToDevice(device: any, pinCode = "") {
       const pinInput = document.getElementById("remote-pin-input") as HTMLInputElement;
       if (pinInput) {
         pinInput.value = "";
-        // Autofocus after the view transition completes
+        
         setTimeout(() => pinInput.focus(), 100);
       }
 
@@ -746,12 +746,12 @@ async function connectToDevice(device: any, pinCode = "") {
     const files = await res.json();
     activeRemoteFiles = files;
     
-    // Render remote files
+    
     renderRemoteFiles(device, files);
     showDiscoverySubView('files');
 
   } catch (err: any) {
-    console.error("Connect to remote device failed:", err);
+    
     showToast(`Failed to connect to ${device.name}: ${err.message || err}`, "error");
     showDiscoverySubView('devices');
   }
@@ -825,7 +825,7 @@ function renderRemoteFiles(device: any, files: any[]) {
       `;
     }).join("");
 
-    // Wire up download buttons
+    
     document.querySelectorAll(".btn-download-remote-file").forEach(btn => {
       btn.addEventListener("click", async (e) => {
         const el = e.currentTarget as HTMLButtonElement;
@@ -849,7 +849,7 @@ function renderRemoteFiles(device: any, files: any[]) {
           });
           showToast(`Downloaded ${fileName} successfully!`, "success");
         } catch (err: any) {
-          console.error("Download failed:", err);
+          
           showToast(`Download failed: ${err.message || err}`, "error");
         } finally {
           el.textContent = "Get";
@@ -884,7 +884,7 @@ async function downloadAllRemoteFiles() {
       });
       successCount++;
     } catch (err) {
-      console.error(`Failed to download ${f.name}:`, err);
+      
     }
   }
 
@@ -950,7 +950,7 @@ async function scanDevices() {
           </li>
         `).join('');
 
-        // Wire Connect
+        
         document.querySelectorAll(".btn-connect-device, .btn-row-connect").forEach(el => {
           el.addEventListener("click", (e) => {
             e.stopPropagation();
@@ -963,7 +963,7 @@ async function scanDevices() {
           });
         });
 
-        // Wire Send To
+        
         document.querySelectorAll(".btn-send-to").forEach(btn => {
           btn.addEventListener("click", async (e) => {
             e.stopPropagation();
@@ -1002,7 +1002,7 @@ async function scanDevices() {
       }
     }
   } catch (err) {
-    console.error("Scan error:", err);
+    
     if (emptyEl) emptyEl.textContent = "Failed to scan network.";
   } finally {
     scanning = false;
@@ -1013,7 +1013,7 @@ async function scanDevices() {
   }
 }
 
-// ─── Incoming Transfer Prompt ─────────────────────────────────────────
+
 
 function openIncomingTransferPrompt(senderName: string, senderIp: string, fileCount: number) {
   incomingSenderIp = senderIp;
@@ -1024,7 +1024,7 @@ function openIncomingTransferPrompt(senderName: string, senderIp: string, fileCo
   if (senderNameEl) senderNameEl.textContent = senderName;
   if (fileCountEl) fileCountEl.textContent = `${fileCount} file${fileCount !== 1 ? 's' : ''}`;
 
-  // Close discovery modal if open and show accept modal
+  
   if (discoveryModalOpen) closeDiscovery();
   openModal("accept-modal");
 }
@@ -1044,11 +1044,11 @@ async function respondIncomingTransfer(accept: boolean) {
       showToast("Incoming transfer declined.", "info");
     }
   } catch (e) {
-    console.error("Respond error:", e);
+    
   }
 }
 
-// ─── Transfer Logs ────────────────────────────────────────────────────
+
 
 async function refreshTransferLog() {
   try {
@@ -1101,11 +1101,11 @@ async function refreshTransferLog() {
       }).join('');
     }
   } catch (err) {
-    console.error("Failed to fetch transfer log:", err);
+    
   }
 }
 
-// ─── Toggle Server ────────────────────────────────────────────────────
+
 
 let toggleServerPending = false;
 
@@ -1127,33 +1127,33 @@ async function toggleServer() {
     }
     await updateServerStatus();
   } catch (e) {
-    console.error("Toggle server error:", e);
+    
     showToast("Failed to toggle portal", "error");
   } finally {
     toggleServerPending = false;
   }
 }
 
-// ─── Event Listeners & Init ───────────────────────────────────────────
+
 
 window.addEventListener("DOMContentLoaded", () => {
   initTheme();
 
-  // Add Files button
+  
   document.getElementById("btn-add-files")?.addEventListener("click", async (e) => {
     e.stopPropagation();
     try {
       const selected = await open({ multiple: true, title: "Select files to share" });
-      console.log("Selected files (raw):", selected);
+      
       if (selected) {
         const paths = Array.isArray(selected) ? selected : [selected];
         const stringPaths = paths.map((p: any) => {
           if (typeof p === "string") return p;
           if (p.path) return p.path;
-          if (p.uri) return p.uri; // Handle Android's content URI
+          if (p.uri) return p.uri; 
           return p;
         });
-        console.log("Selected paths processed:", stringPaths);
+        
         if (stringPaths.length > 0) {
           showFileLoading(true);
           await invoke("add_files", { paths: stringPaths });
@@ -1162,24 +1162,24 @@ window.addEventListener("DOMContentLoaded", () => {
         }
       }
     } catch (err) {
-      console.error("File selection error:", err);
+      
       showToast("File selection failed", "error");
     } finally {
       showFileLoading(false);
     }
   });
 
-  // Add Folder button
+  
   document.getElementById("btn-add-folder")?.addEventListener("click", async (e) => {
     e.stopPropagation();
     try {
       const selected = await open({ directory: true, title: "Select a folder to share" });
-      console.log("Selected folder (raw):", selected);
+      
       if (selected) {
         const path = typeof selected === "string" 
           ? selected 
-          : ((selected as any).path || (selected as any).uri); // Handle Android's content URI
-        console.log("Selected folder path processed:", path);
+          : ((selected as any).path || (selected as any).uri); 
+        
         if (path) {
           showFileLoading(true);
           await invoke("add_folder", { path });
@@ -1188,26 +1188,26 @@ window.addEventListener("DOMContentLoaded", () => {
         }
       }
     } catch (err) {
-      console.error("Folder selection error:", err);
+      
       showToast("Folder selection failed", "error");
     } finally {
       showFileLoading(false);
     }
   });
 
-  // Search bar (desktop)
+  
   document.getElementById("search-bar")?.addEventListener("input", (e) => {
     searchQuery = (e.target as HTMLInputElement).value;
     renderFiles();
   });
 
-  // Search bar (mobile)
+  
   document.getElementById("search-bar-mobile")?.addEventListener("input", (e) => {
     searchQuery = (e.target as HTMLInputElement).value;
     renderFiles();
   });
 
-  // Mobile search toggle
+  
   document.getElementById("btn-mobile-search")?.addEventListener("click", () => {
     const bar = document.getElementById("mobile-search-bar");
     if (bar) {
@@ -1219,18 +1219,18 @@ window.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // Drop zone click
+  
   document.getElementById("drop-zone")?.addEventListener("click", () => {
     document.getElementById("btn-add-files")?.click();
   });
 
-  // Portal toggle buttons
+  
   document.getElementById("btn-start-server-large")?.addEventListener("click", toggleServer);
   document.getElementById("btn-start-server-large-aux")?.addEventListener("click", toggleServer);
   document.getElementById("btn-toggle-server")?.addEventListener("click", toggleServer);
   document.getElementById("btn-stop-server")?.addEventListener("click", toggleServer);
 
-  // Cycle IPs
+  
   const cycleIpHandler = () => {
     if (activeIpList.length > 1) {
       activeIpIndex = (activeIpIndex + 1) % activeIpList.length;
@@ -1250,7 +1250,7 @@ window.addEventListener("DOMContentLoaded", () => {
     cycleIpHandler();
   });
 
-  // Copy URL
+  
   document.getElementById("btn-copy-url")?.addEventListener("click", async () => {
     const accessUrl = document.getElementById("access-url")?.textContent;
     if (accessUrl) {
@@ -1269,12 +1269,12 @@ window.addEventListener("DOMContentLoaded", () => {
           }, 2000);
         }
       } catch (err) {
-        console.error("Copy failed:", err);
+        
       }
     }
   });
 
-  // Settings
+  
   document.getElementById("btn-settings")?.addEventListener("click", openSettings);
   document.getElementById("btn-close-settings")?.addEventListener("click", closeSettings);
   document.getElementById("btn-save-settings")?.addEventListener("click", saveSettings);
@@ -1284,7 +1284,7 @@ window.addEventListener("DOMContentLoaded", () => {
     updatePasswordToggleUI();
   });
 
-  // Auto-detect IP toggle
+  
   document.getElementById("setting-auto-detect-ip")?.addEventListener("click", (e) => {
     const toggle = e.currentTarget as HTMLElement;
     const knob = toggle.querySelector("span");
@@ -1300,7 +1300,7 @@ window.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // Clear files
+  
   document.getElementById("btn-clear-files")?.addEventListener("click", openClearConfirm);
   document.getElementById("btn-cancel-clear")?.addEventListener("click", fnCloseClearConfirm);
   document.getElementById("btn-confirm-clear")?.addEventListener("click", async () => {
@@ -1315,13 +1315,13 @@ window.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // Discovery / receive buttons
+  
   document.getElementById("btn-header-receive")?.addEventListener("click", openDiscovery);
   document.getElementById("btn-find-devices")?.addEventListener("click", openDiscovery);
   document.getElementById("btn-close-discovery")?.addEventListener("click", closeDiscovery);
   document.getElementById("btn-refresh-discovery")?.addEventListener("click", () => scanDevices());
 
-  // Connected remote device actions
+  
   document.getElementById("btn-remote-pin-back")?.addEventListener("click", () => {
     showDiscoverySubView('devices');
   });
@@ -1336,7 +1336,7 @@ window.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // Submit PIN on Enter key
+  
   document.getElementById("remote-pin-input")?.addEventListener("keydown", (e) => {
     if (e.key === "Enter") {
       e.preventDefault();
@@ -1347,11 +1347,11 @@ window.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // Incoming transfer
+  
   document.getElementById("btn-accept-transfer")?.addEventListener("click", () => respondIncomingTransfer(true));
   document.getElementById("btn-decline-transfer")?.addEventListener("click", () => respondIncomingTransfer(false));
 
-  // Overlay click to close
+  
   document.getElementById("modal-overlay")?.addEventListener("click", (e) => {
     if (e.target === document.getElementById("modal-overlay")) {
       const settings = document.getElementById("settings-modal");
@@ -1366,7 +1366,7 @@ window.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // Escape key
+  
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
       const settings = document.getElementById("settings-modal");
@@ -1381,7 +1381,7 @@ window.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // Native drag & drop
+  
   try {
     const webview = getCurrentWebview();
     webview.onDragDropEvent((event) => {
@@ -1409,16 +1409,16 @@ window.addEventListener("DOMContentLoaded", () => {
       }
     });
   } catch (e) {
-    console.error("Drag & drop init error:", e);
+    
   }
 
-  // Initial load
+  
   updateServerStatus();
   loadFiles();
   refreshTransferLog();
   checkForUpdates();
 
-  // Prompt username if default or not set
+  
   setTimeout(async () => {
     try {
       const config: any = await invoke("get_config");
@@ -1430,11 +1430,11 @@ window.addEventListener("DOMContentLoaded", () => {
         openSettings();
       }
     } catch (e) {
-      console.error("Failed to check username on startup:", e);
+      
     }
   }, 1500);
 
-  // Polling interval while server runs
+  
   setInterval(() => {
     if (serverRunning) {
       updateServerStatus();
@@ -1443,12 +1443,12 @@ window.addEventListener("DOMContentLoaded", () => {
   }, 2500);
 });
 
-// ─── Tauri Event Listeners ────────────────────────────────────────────
+
 
 listen("server-started", () => {
   updateServerStatus();
-  // If discovery modal is open when our own server starts, trigger a rescan
-  // (so others can see us and vice versa)
+  
+  
   if (discoveryModalOpen) scanDevices();
 });
 
@@ -1505,7 +1505,7 @@ async function checkForUpdates() {
       }
     }
   } catch (err) {
-    console.error("Failed to check for updates:", err);
+    
   }
 }
 

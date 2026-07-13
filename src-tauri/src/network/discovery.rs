@@ -1,9 +1,9 @@
-// src-tauri/src/network/discovery.rs
-// LAN IP address detection.
+
+
 
 use local_ip_address::{list_afinet_netifas, local_ip};
 
-/// Get the primary local IP address (usually the default route interface).
+
 pub fn get_primary_local_ip() -> Option<String> {
     match local_ip() {
         Ok(ip) => Some(ip.to_string()),
@@ -11,7 +11,7 @@ pub fn get_primary_local_ip() -> Option<String> {
     }
 }
 
-/// Get all non-loopback IPv4 addresses on this machine, prioritizing physical adapters.
+
 pub fn get_all_local_ips() -> Vec<String> {
     match list_afinet_netifas() {
         Ok(ifas) => {
@@ -23,9 +23,11 @@ pub fn get_all_local_ips() -> Vec<String> {
             
             let primary_ip = get_primary_local_ip();
             
-            // Prioritize hotspot and physical adapters (Wi-Fi, Ethernet) over virtual adapters
+            
             ips.sort_by_key(|(name, ip)| {
                 let name_lower = name.to_lowercase();
+                
+                
                 let is_virtual = name_lower.contains("virtual")
                     || name_lower.contains("vbox")
                     || name_lower.contains("wsl")
@@ -37,21 +39,39 @@ pub fn get_all_local_ips() -> Vec<String> {
                     || name_lower.contains("ethernet 2")
                     || name_lower.contains("ethernet 3");
                 
-                let is_hotspot = ip.starts_with("192.168.137.");
+                
+                let is_android_hotspot = name_lower.contains("ap")
+                    || name_lower.contains("swlan")
+                    || name_lower.contains("softap")
+                    || name_lower.contains("rndis")
+                    || name_lower.contains("bridge");
+                    
+                let is_android_wifi = name_lower.contains("wlan");
+                
+                let is_android_deprioritized = name_lower.contains("rmnet")
+                    || name_lower.contains("dummy")
+                    || name_lower.contains("p2p")
+                    || name_lower.contains("sit");
+
+                let is_hotspot = ip.starts_with("192.168.137.") || is_android_hotspot;
                 let is_primary = Some(ip.clone()) == primary_ip;
                 let is_preferred_range = ip.starts_with("192.168.") || ip.starts_with("10.");
                 
-                // Score:
-                // 0: Active Windows Mobile Hotspot subnet (192.168.137.x) - absolute highest priority
-                // 1: Primary default route IP
-                // 2: Other physical preferred LAN IP (Wi-Fi/Ethernet)
-                // 3: Other physical IP
-                // 4: Virtual preferred IP
-                // 5: Virtual other IP
+                
+                
+                
+                
+                
+                
+                
                 if is_hotspot {
                     0
                 } else if is_primary {
                     1
+                } else if is_android_deprioritized {
+                    4
+                } else if is_android_wifi {
+                    2
                 } else {
                     match (is_virtual, is_preferred_range) {
                         (false, true) => 2,
@@ -66,18 +86,18 @@ pub fn get_all_local_ips() -> Vec<String> {
             sorted_ips
         }
         Err(_) => {
-            // Fallback: try the primary IP
+            
             get_primary_local_ip().into_iter().collect()
         }
     }
 }
 
-/// Build the full server URL for a given IP and port.
+
 pub fn build_server_url(ip: &str, port: u16) -> String {
     format!("http://{}:{}", ip, port)
 }
 
-/// Resolve local system device name.
+
 pub fn get_device_name() -> String {
     if let Ok(name) = std::env::var("COMPUTERNAME") {
         return name;
@@ -94,8 +114,8 @@ pub fn get_device_name() -> String {
     "Shairee Device".to_string()
 }
 
-/// Proactively broadcast presence to the LAN so receivers already scanning can find us.
-/// Call this whenever the server starts.
+
+
 pub fn broadcast_presence(device_name: &str, port: u16, require_pin: bool) {
     let msg = format!("SHAIREE_SERVER|{}|{}|{}", device_name, port, require_pin);
     let msg_bytes = msg.into_bytes();
@@ -112,7 +132,7 @@ pub fn broadcast_presence(device_name: &str, port: u16, require_pin: bool) {
             }
         }
         
-        // Fallback to binding 0.0.0.0 if no specific interfaces bound successfully
+        
         if sockets.is_empty() {
             if let Ok(socket) = std::net::UdpSocket::bind("0.0.0.0:0") {
                 let _ = socket.set_broadcast(true);
@@ -120,13 +140,13 @@ pub fn broadcast_presence(device_name: &str, port: u16, require_pin: bool) {
             }
         }
 
-        // Send 3 rapid broadcasts to improve reliability over lossy networks
+        
         for _ in 0..3 {
             for (socket, ip) in &sockets {
-                // Send to general broadcast
+                
                 let _ = socket.send_to(&msg_bytes, "255.255.255.255:8389");
                 
-                // Send to class C subnet broadcast
+                
                 if let std::net::IpAddr::V4(ipv4) = ip {
                     if !ipv4.is_unspecified() {
                         let octets = ipv4.octets();
@@ -140,7 +160,7 @@ pub fn broadcast_presence(device_name: &str, port: u16, require_pin: bool) {
     });
 }
 
-/// Listen for incoming UDP discovery broadcasts on port 8389.
+
 pub fn start_discovery_listener(
     app_state: std::sync::Arc<parking_lot::RwLock<crate::state::AppState>>,
     _app_handle: tauri::AppHandle,
@@ -149,8 +169,8 @@ pub fn start_discovery_listener(
         let socket = match std::net::UdpSocket::bind("0.0.0.0:8389") {
             Ok(s) => s,
             Err(_) => {
-                // Port 8389 is unavailable; other devices will not find this
-                // device automatically via discovery. Not fatal — continue.
+                
+                
                 return;
             }
         };
@@ -161,7 +181,7 @@ pub fn start_discovery_listener(
                 Ok((amt, src)) => {
                     let msg = String::from_utf8_lossy(&buf[..amt]);
                     if msg == "SHAIREE_DISCOVER" {
-                        // Someone is scanning — reply only if our server is running
+                        
                         let state = app_state.read();
                         if state.server_running {
                             let device_name = state.config.server_name.clone();
