@@ -38,9 +38,9 @@ pub fn start_server(
         App::new()
             .wrap(cors)
             .app_data(server_state.clone())
-            // WebSocket route
+            
             .route("/ws", web::get().to(websocket::ws_handler))
-            // API Routes
+            
             .route("/api/status", web::get().to(routes::get_status))
             .route("/api/files", web::get().to(routes::list_files))
             .route("/api/download/{id}", web::get().to(routes::download_file))
@@ -48,18 +48,18 @@ pub fn start_server(
             .route("/download-all", web::get().to(routes::download_all))
             .route("/api/download-all", web::get().to(routes::download_all))
             .route("/api/receive-request", web::post().to(routes::receive_request))
-            // UI Route (catch all, serves mobile UI)
+            
             .route("/", web::get().to(mobile_ui::serve_mobile_ui))
     })
     .bind((bind_address, port))
     .map_err(AppError::Io)?
-    .disable_signals() // Tauri handles signals
+    .disable_signals() 
     .workers(4)
     .run();
 
     let server_handle = server.handle();
     
-    // Spawn server in a separate thread because Actix uses its own Tokio runtime
+    
     std::thread::spawn(move || {
         let sys = actix_web::rt::System::new();
         let _ = sys.block_on(server);

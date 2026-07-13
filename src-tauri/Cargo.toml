@@ -1,6 +1,6 @@
 [package]
 name = "shairee"
-version = "1.0.4"
+version = "1.0.5"
 description = "Ultra-fast local file sharing from Windows to Android"
 authors = ["Shairee"]
 edition = "2021"

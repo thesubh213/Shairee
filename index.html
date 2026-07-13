@@ -24,9 +24,9 @@
   <body class="bg-canvas text-ink min-h-screen flex flex-col selection:bg-ink/10 selection:text-ink relative">
 
 
-    <!-- Header Navigation -->
+    
     <header class="border-b border-hairline bg-canvas flex items-center justify-between px-4 sm:px-6 py-3 sticky top-0 z-40 select-none safe-top">
-      <!-- Brand Logo & Title -->
+      
       <div class="flex items-center gap-2.5 shrink-0">
         <div class="w-7 h-7 flex items-center justify-center text-ink shrink-0">
           <svg viewBox="0 0 24 24" class="w-6 h-6 fill-none stroke-current" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -40,23 +40,23 @@
         <span class="font-display text-xl tracking-wide uppercase">SHAIREE</span>
       </div>
 
-      <!-- Center: Search (hidden on mobile, inline on sm+) -->
+      
       <div class="hidden sm:flex flex-1 max-w-xs mx-4">
         <div class="relative w-full">
           <input type="text" id="search-bar" placeholder="Search files..." class="w-full h-9 bg-soft-cloud text-xs font-medium text-ink px-4 py-2 rounded-full border border-transparent focus-halo" aria-label="Search shared files" />
         </div>
       </div>
 
-      <!-- Right controls cluster -->
+      
       <div class="flex items-center gap-2">
-        <!-- Mobile search toggle -->
+        
         <button id="btn-mobile-search" class="sm:hidden w-9 h-9 rounded-full bg-soft-cloud flex items-center justify-center text-ink border border-transparent btn-tap-collapse" title="Search" aria-label="Search files">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
         </button>
 
-        <!-- Light/Dark Toggle -->
+        
         <button id="btn-theme-toggle" class="w-9 h-9 rounded-full bg-soft-cloud flex items-center justify-center text-ink btn-tap-collapse border border-transparent" title="Toggle Mode" aria-label="Toggle dark mode">
           <svg class="w-4 h-4 block dark:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path>
@@ -66,7 +66,7 @@
           </svg>
         </button>
 
-        <!-- Status Indicator -->
+        
         <div id="header-status-indicator" class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-soft-cloud border border-hairline-soft text-xs font-semibold uppercase tracking-wider">
           <span class="relative flex w-2 h-2 shrink-0">
             <span id="status-ping" class="absolute inline-flex w-full h-full rounded-full bg-red-400 opacity-75 animate-ping"></span>
@@ -75,7 +75,7 @@
           <span id="header-status-text" class="hidden sm:inline">Stopped</span>
         </div>
 
-        <!-- Settings Button -->
+        
         <button id="btn-settings" class="w-9 h-9 rounded-full bg-soft-cloud flex items-center justify-center text-ink btn-tap-collapse border border-transparent" aria-label="Settings">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
@@ -85,12 +85,12 @@
       </div>
     </header>
 
-    <!-- Mobile Search Bar (expandable) -->
+    
     <div id="mobile-search-bar" class="hidden sm:hidden bg-canvas border-b border-hairline px-4 py-2.5">
       <input type="text" id="search-bar-mobile" placeholder="Search files..." class="w-full h-9 bg-soft-cloud text-xs font-medium text-ink px-4 py-2 rounded-full border border-transparent focus-halo" aria-label="Search shared files" />
     </div>
 
-    <!-- Editorial Hero Section -->
+    
     <section class="relative bg-ink text-canvas py-6 sm:py-12 px-5 sm:px-8 flex flex-col justify-end min-h-[140px] sm:min-h-[220px] border-b border-hairline overflow-hidden select-none">
       <div class="absolute inset-0 z-0 opacity-10 pointer-events-none">
         <div class="absolute inset-0" style="background-image: linear-gradient(var(--colors-hairline) 1px, transparent 1px), linear-gradient(90deg, var(--colors-hairline) 1px, transparent 1px); background-size: 40px 40px;"></div>
@@ -118,7 +118,7 @@
       </div>
     </section>
 
-    <!-- Update Notification Banner -->
+    
     <div id="update-banner" class="hidden bg-info/10 border-b border-info px-4 py-3 text-xs font-semibold text-info flex items-center justify-between gap-4 select-none animate-fade-in">
       <div class="flex items-center gap-2.5 min-w-0">
         <span class="w-2.5 h-2.5 bg-info rounded-full animate-pulse-soft shrink-0"></span>
@@ -129,13 +129,13 @@
       </a>
     </div>
 
-    <!-- Core App Container Layout -->
+    
     <main class="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 py-6 sm:py-8 grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 items-start">
       
-      <!-- Left Column: Shared Storage & Files (8/12 Grid) -->
+      
       <div class="lg:col-span-8 flex flex-col gap-6" id="shared-files-section">
         
-        <!-- Section Header -->
+        
         <div class="flex items-center justify-between border-b border-hairline pb-2">
           <h2 class="font-display text-xl sm:text-2xl tracking-wide uppercase">SHARED FILES</h2>
           <div class="flex items-center gap-3 text-xs font-semibold uppercase tracking-wider">
@@ -144,7 +144,7 @@
           </div>
         </div>
 
-        <!-- Drag & Drop Zone -->
+        
         <div id="drop-zone" class="relative group border-2 border-dashed border-hairline bg-canvas hover:bg-soft-cloud flex flex-col items-center justify-center p-5 sm:p-8 text-center cursor-pointer transition-all duration-200 rounded-lg min-h-[140px] sm:min-h-[180px]">
           <div class="pointer-events-none select-none flex flex-col items-center gap-2 mb-4">
             <div class="w-10 h-10 sm:w-12 sm:h-12 bg-soft-cloud rounded-full flex items-center justify-center text-ink border border-hairline-soft group-hover:scale-105 transition-transform duration-200">
@@ -156,7 +156,7 @@
             <span class="text-xs text-mute font-medium">Or tap a button below to browse</span>
           </div>
           
-          <!-- Browse action buttons -->
+          
           <div class="flex gap-2 sm:gap-3 relative z-10 flex-wrap justify-center">
             <button id="btn-add-files" class="h-9 px-5 sm:px-6 bg-ink text-canvas font-semibold rounded-full text-[11px] uppercase tracking-wider btn-tap-collapse border border-transparent" aria-label="Add files to share">
               Add Files
@@ -167,7 +167,7 @@
           </div>
         </div>
 
-        <!-- No files hint banner (shows when server is running but no files) -->
+        
         <div id="no-files-hint" class="hidden bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 px-4 py-3 rounded-lg text-xs font-semibold text-amber-700 dark:text-amber-400 flex items-center gap-3">
           <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
@@ -175,9 +175,9 @@
           Portal is running but no files are shared yet. Add files above to start sharing!
         </div>
 
-        <!-- Shared Files Grid -->
+        
         <div class="relative min-h-[120px]">
-          <!-- Loading Overlay -->
+          
           <div id="file-list-loading" class="hidden absolute inset-0 bg-canvas/90 z-20 flex flex-col items-center justify-center text-center p-6 animate-fade-in rounded-lg">
             <div class="w-8 h-8 text-ink animate-spin-slow mb-3 flex items-center justify-center">
               <svg viewBox="0 0 24 24" class="w-8 h-8 fill-none stroke-current" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -191,7 +191,7 @@
             <p class="font-semibold text-xs uppercase tracking-wider">Indexing files...</p>
           </div>
 
-          <!-- Empty State -->
+          
           <div id="file-list-empty" class="h-36 flex flex-col items-center justify-center text-center p-6 border border-hairline bg-canvas rounded-lg">
             <svg class="w-8 h-8 mb-2 text-hairline" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
               <path stroke-linecap="round" stroke-linejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
@@ -200,27 +200,27 @@
             <span class="empty-state-subtitle text-[11px] text-mute font-medium mt-1">Add files above to share them on your local network.</span>
           </div>
 
-          <!-- dynamic files list (grid layout) -->
+          
           <ul id="file-list" class="hidden grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-4"></ul>
         </div>
       </div>
 
-      <!-- Right Column: Portal Gateway & Live Activity (4/12 Grid) -->
+      
       <div class="lg:col-span-4 flex flex-col gap-6" id="network-portal-section">
         
-        <!-- Network Portal Header -->
+        
         <div class="flex items-center justify-between border-b border-hairline pb-2">
           <h2 class="font-display text-xl sm:text-2xl tracking-wide uppercase">PORTAL</h2>
           
-          <!-- Server toggle switch -->
+          
           <button id="btn-toggle-server" role="switch" aria-checked="false" aria-label="Toggle sharing portal" class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors bg-hairline focus:outline-none shrink-0 cursor-not-allowed opacity-50" title="Add files first to start portal" disabled>
             <span id="server-toggle-knob" class="inline-block w-4 h-4 transition-transform translate-x-1 bg-canvas rounded-full shadow-md"></span>
           </button>
         </div>
 
-        <!-- Portal Details Container -->
+        
         <div class="flex flex-col gap-4">
-          <!-- Server Offline State -->
+          
           <div id="server-offline-state" class="p-5 bg-soft-cloud text-center border border-hairline rounded-lg select-none">
             <svg class="w-8 h-8 mx-auto mb-2 text-hairline" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
               <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
@@ -232,9 +232,9 @@
             </button>
           </div>
 
-          <!-- Server Online State -->
+          
           <div id="server-online-state" class="hidden flex-col gap-4">
-            <!-- QR code -->
+            
             <div class="bg-soft-cloud p-4 flex flex-col items-center justify-center border border-hairline rounded-lg select-none">
               <div id="qr-container" class="bg-white p-2 border border-hairline transition-transform duration-200 cursor-zoom-in hover:scale-[1.02] rounded" title="Click to enlarge">
                 <img id="qr-code-img" src="" alt="Portal QR Code" class="w-36 h-36 sm:w-40 sm:h-40 filter dark:contrast-125 select-none" />
@@ -242,7 +242,7 @@
               <span class="text-[10px] uppercase font-bold text-mute tracking-wider mt-2.5">Scan to connect from another device</span>
             </div>
 
-            <!-- URL Display -->
+            
             <div class="flex flex-col gap-1.5">
               <span class="text-[10px] uppercase font-bold text-mute tracking-wider">Portal Access URL</span>
               <div class="flex items-center gap-2">
@@ -265,7 +265,7 @@
               </div>
             </div>
 
-            <!-- Stats Rows -->
+            
             <div class="flex flex-col border-t border-hairline text-xs select-none">
               <div class="flex items-center justify-between py-2.5 border-b border-hairline">
                 <span class="font-semibold text-mute uppercase tracking-wider">Active Clients</span>
@@ -277,14 +277,14 @@
               </div>
             </div>
 
-            <!-- Stop Portal -->
+            
             <button id="btn-stop-server" class="h-9 w-full bg-sale/10 text-sale border border-sale/20 font-semibold rounded-full text-[11px] uppercase tracking-wider btn-tap-collapse hover:bg-sale/20 transition-colors" aria-label="Stop sharing portal">
               Stop Portal
             </button>
           </div>
         </div>
 
-        <!-- Find Devices CTA -->
+        
         <div class="border-t border-hairline pt-4">
           <button id="btn-find-devices" class="w-full h-10 bg-soft-cloud text-ink font-semibold rounded-full text-[11px] uppercase tracking-wider btn-tap-collapse border border-hairline flex items-center justify-center gap-2" aria-label="Find devices on network">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
@@ -294,19 +294,19 @@
           </button>
         </div>
 
-        <!-- Live Activity Log Section -->
+        
         <div class="flex flex-col gap-3">
           <div class="flex items-center justify-between border-b border-hairline pb-2">
             <h2 class="font-display text-xl tracking-wide uppercase">ACTIVITY</h2>
           </div>
 
           <div id="transfer-log-container" class="relative min-h-[100px]">
-            <!-- Empty Activity state -->
+            
             <div id="log-empty" class="h-24 flex items-center justify-center text-center text-[11px] font-semibold text-mute uppercase tracking-wider border border-hairline bg-canvas rounded-lg">
               No transfers yet
             </div>
             
-            <!-- Logs List -->
+            
             <ul id="transfer-log" class="hidden flex flex-col divide-y divide-hairline border border-hairline rounded-lg overflow-hidden"></ul>
           </div>
         </div>
@@ -314,7 +314,7 @@
       </div>
     </main>
 
-    <!-- Footer -->
+    
     <footer class="mt-12 border-t border-hairline bg-canvas py-6 px-4 sm:px-6 text-[10px] text-mute uppercase tracking-wider font-semibold select-none">
       <div class="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-3">
         <div>© 2026 SHAIREE. ALL LOCAL RIGHTS RESERVED.</div>
@@ -325,10 +325,10 @@
       </div>
     </footer>
 
-    <!-- Modals Layer -->
+    
     <div id="modal-overlay" class="fixed inset-0 z-50 flex items-center justify-center p-4 transition-opacity duration-300 opacity-0 pointer-events-none bg-ink/40 backdrop-blur-sm">
       
-      <!-- Settings Modal -->
+      
       <div id="settings-modal" class="w-full max-w-sm bg-canvas border border-ink p-5 sm:p-6 transition-all duration-300 scale-95 hidden opacity-0 flex flex-col gap-5 max-h-[calc(100vh-2rem)] overflow-y-auto custom-scrollbar rounded-2xl">
         <div class="flex items-center justify-between border-b border-hairline pb-2 select-none">
           <h2 class="font-display text-2xl tracking-wide uppercase">SETTINGS</h2>
@@ -340,19 +340,19 @@
         </div>
         
         <div class="flex flex-col gap-4">
-          <!-- Device Username -->
+          
           <div class="flex flex-col gap-1.5">
             <label class="text-[10px] uppercase font-bold text-mute tracking-wider">Device Username / Name</label>
             <input type="text" id="setting-username" placeholder="Shairee Device" class="w-full h-10 bg-soft-cloud text-xs font-semibold px-4 py-2 border border-transparent focus-halo rounded-lg" />
           </div>
 
-          <!-- Custom Port -->
+          
           <div class="flex flex-col gap-1.5">
             <label class="text-[10px] uppercase font-bold text-mute tracking-wider">Port Number</label>
             <input type="number" id="setting-port" placeholder="8384" class="w-full h-10 bg-soft-cloud text-xs font-semibold px-4 py-2 border border-transparent focus-halo rounded-lg" />
           </div>
 
-          <!-- Password PIN Toggle -->
+          
           <div class="flex items-center justify-between select-none">
             <div class="flex flex-col">
               <label class="text-[11px] uppercase font-bold tracking-wider">Require Security PIN</label>
@@ -363,24 +363,24 @@
             </button>
           </div>
           
-          <!-- Password Input -->
+          
           <div id="password-input-container" class="hidden flex flex-col gap-1.5">
             <label class="text-[10px] uppercase font-bold text-mute tracking-wider">PIN (4–8 digits)</label>
             <input type="text" id="setting-password" placeholder="Enter numeric PIN" class="w-full h-10 bg-soft-cloud text-xs font-semibold px-4 py-2 border border-transparent focus-halo rounded-lg" />
           </div>
 
-          <!-- Network Settings -->
+          
           <div class="border-t border-hairline pt-3 flex flex-col gap-4">
             <div class="text-[10px] uppercase font-bold text-mute tracking-wider">Network</div>
 
-            <!-- Bind Address -->
+            
             <div class="flex flex-col gap-1.5">
               <label class="text-[10px] uppercase font-bold text-mute tracking-wider">Bind Address</label>
               <input type="text" id="setting-bind-address" placeholder="0.0.0.0" class="w-full h-10 bg-soft-cloud text-xs font-semibold px-4 py-2 border border-transparent focus-halo rounded-lg" />
               <span class="text-[10px] text-mute font-medium">IP address to bind the server to (0.0.0.0 for all interfaces)</span>
             </div>
 
-            <!-- Auto-detect IP Toggle -->
+            
             <div class="flex items-center justify-between select-none">
               <div class="flex flex-col">
                 <label class="text-[11px] uppercase font-bold tracking-wider">Auto-detect LAN IP</label>
@@ -391,14 +391,14 @@
               </button>
             </div>
 
-            <!-- Manual IP Override -->
+            
             <div class="flex flex-col gap-1.5">
               <label class="text-[10px] uppercase font-bold text-mute tracking-wider">Manual IP Override</label>
               <input type="text" id="setting-manual-ip" placeholder="e.g. 192.168.1.100 (optional)" class="w-full h-10 bg-soft-cloud text-xs font-semibold px-4 py-2 border border-transparent focus-halo rounded-lg" />
               <span class="text-[10px] text-mute font-medium">Leave empty to auto-detect. Used for QR code and sharing URL.</span>
             </div>
 
-            <!-- Max Concurrent Downloads -->
+            
             <div class="flex flex-col gap-1.5">
               <label class="text-[10px] uppercase font-bold text-mute tracking-wider">Max Concurrent Downloads</label>
               <input type="number" id="setting-max-downloads" placeholder="0" min="0" max="100" class="w-full h-10 bg-soft-cloud text-xs font-semibold px-4 py-2 border border-transparent focus-halo rounded-lg" />
@@ -406,7 +406,7 @@
             </div>
           </div>
 
-          <!-- Error message -->
+          
           <div id="settings-error-msg" class="hidden text-[10px] uppercase font-bold text-sale bg-sale/5 border border-sale/15 p-3 animate-fade-in rounded-lg"></div>
         </div>
         
@@ -417,7 +417,7 @@
         </div>
       </div>
 
-      <!-- Clear Storage Confirmation Modal -->
+      
       <div id="confirm-modal" class="w-full max-w-xs bg-canvas border border-ink p-5 sm:p-6 transition-all duration-300 scale-95 hidden opacity-0 flex flex-col gap-4 rounded-2xl">
         <h2 class="font-display text-2xl tracking-wide uppercase text-sale select-none">CLEAR STORAGE?</h2>
         <p class="text-xs text-mute font-medium leading-relaxed select-none">
@@ -433,7 +433,7 @@
         </div>
       </div>
 
-      <!-- Network Discovery Modal (Unified Send/Receive) -->
+      
       <div id="discovery-modal" class="w-full max-w-md bg-canvas border border-ink p-5 sm:p-6 transition-all duration-300 scale-95 hidden opacity-0 flex flex-col gap-5 max-h-[calc(100vh-2rem)] overflow-y-auto custom-scrollbar rounded-2xl">
         <div class="flex items-center justify-between border-b border-hairline pb-2 select-none">
           <h2 id="discovery-modal-title" class="font-display text-2xl tracking-wide uppercase">DEVICES</h2>
@@ -444,9 +444,9 @@
           </button>
         </div>
         
-        <!-- View 1: Device List -->
+        
         <div id="view-discovery-devices" class="flex flex-col gap-4">
-          <!-- Status banner -->
+          
           <div class="flex items-center gap-3 bg-soft-cloud p-3.5 border border-hairline rounded-lg select-none">
             <div class="w-4 h-4 text-ink animate-spin-slow flex items-center justify-center shrink-0">
               <svg viewBox="0 0 24 24" class="w-4 h-4 fill-none stroke-current" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -470,7 +470,7 @@
             DEVICES ON YOUR NETWORK
           </div>
           
-          <!-- Devices list -->
+          
           <div class="relative min-h-[120px] max-h-[260px] overflow-y-auto custom-scrollbar border border-hairline rounded-lg">
             <div id="discovery-empty" class="absolute inset-0 flex items-center justify-center text-center p-6 text-[11px] text-mute font-bold tracking-wider select-none bg-canvas rounded-lg">
               Scanning for active devices...
@@ -478,13 +478,13 @@
             <ul id="discovery-list" class="hidden flex flex-col divide-y divide-hairline"></ul>
           </div>
 
-          <!-- Help text -->
+          
           <div class="text-[10px] text-mute font-semibold tracking-wider leading-relaxed select-none bg-soft-cloud p-3 rounded-lg border border-hairline">
             <span class="font-bold text-ink">How it works:</span> Devices running Shairee appear here automatically. Tap a device to view and pull its shared files, or click <span class="font-bold text-ink">"Send To"</span> to push your files.
           </div>
         </div>
 
-        <!-- View 2: PIN Input -->
+        
         <div id="view-discovery-pin" class="hidden flex flex-col gap-4">
           <div class="text-center py-2 select-none">
             <div class="w-10 h-10 rounded-full bg-soft-cloud border border-hairline flex items-center justify-center mx-auto mb-2">
@@ -510,7 +510,7 @@
           </div>
         </div>
 
-        <!-- View 3: Remote Files View -->
+        
         <div id="view-discovery-files" class="hidden flex flex-col gap-4">
           <div class="flex items-center justify-between select-none">
             <div class="flex flex-col min-w-0">
@@ -522,7 +522,7 @@
             </button>
           </div>
 
-          <!-- Files List -->
+          
           <div class="relative min-h-[140px] max-h-[300px] overflow-y-auto custom-scrollbar border border-hairline rounded-lg">
             <div id="remote-files-empty" class="absolute inset-0 flex items-center justify-center text-center p-6 text-[11px] text-mute font-bold tracking-wider select-none bg-canvas rounded-lg hidden">
               No files shared by this device
@@ -536,7 +536,7 @@
         </div>
       </div>
 
-      <!-- Accept Files Incoming Request Modal -->
+      
       <div id="accept-modal" class="w-full max-w-sm bg-canvas border border-ink p-5 sm:p-6 transition-all duration-300 scale-95 hidden opacity-0 flex flex-col gap-4 rounded-2xl">
         <div class="flex items-center gap-3">
           <div class="w-10 h-10 rounded-full bg-info/10 flex items-center justify-center shrink-0">
@@ -561,7 +561,7 @@
 
     </div>
 
-    <!-- Toast Notifications Container -->
+    
     <div id="toast-container" class="fixed bottom-6 right-4 sm:right-6 z-50 flex flex-col gap-2 pointer-events-none max-w-[calc(100vw-2rem)] sm:max-w-sm"></div>
 
     <script type="module" src="/src/main.ts"></script>

@@ -1,5 +1,5 @@
-// src-tauri/src/network/mod.rs
-// Network detection and management.
+
+
 
 pub mod discovery;
 pub mod firewall;
